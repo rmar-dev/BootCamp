@@ -60,26 +60,91 @@ Plain DNS-only proxy works fine.
 
 ## 3. Run the bootstrap
 
+### Single app (BootCamp only)
+
 ```bash
 ssh root@your-vps-ip
 
-# One command — installs Docker, clones the repo, generates secrets, brings up the stack
 curl -fsSL https://raw.githubusercontent.com/rmar-dev/BootCamp/main/deploy/bootstrap.sh \
-  | bash -s -- demo.yourdomain.com
+  | bash -s -- bootcamp.yourdomain.com
 ```
 
-What you'll see:
-1. Docker install (~1 min, skipped if already present)
-2. Repo clone (~10 s)
-3. Image build (~5–10 min on first run — Swift base image is the long one)
-4. Stack starts
-5. Migration apply (5 s)
-6. Curriculum compile into DB (~30 s — publishes 12 weeks of Swift lessons)
-7. Health check passes → script prints the URL
+### Two apps (BootCamp + Constructhub on the same VPS)
 
-Visit `https://demo.yourdomain.com`. The first request triggers Caddy to
-provision a TLS cert; it might pause 10–30 s while that happens. After that,
-instant.
+```bash
+ssh root@your-vps-ip
+
+curl -fsSL https://raw.githubusercontent.com/rmar-dev/BootCamp/main/deploy/bootstrap.sh \
+  | bash -s -- bootcamp.yourdomain.com --with constructhub app.yourdomain.com
+```
+
+The `--with constructhub` flag also clones `rmar-dev/constructhub`, brings
+up its Go backend + Vite SPA + dedicated Postgres + Redis, and routes a
+second subdomain through the same Caddy. See **Multi-app architecture**
+below for what's shared and what's isolated.
+
+What you'll see (single app):
+1. Docker install (~1 min, skipped if already present)
+2. Shared `web-edge` network created
+3. Repo clone (~10 s)
+4. Image build (~5–10 min on first run — Swift base image is the long one)
+5. Stack starts
+6. Migration apply (5 s)
+7. Curriculum compile into DB (~30 s — publishes 12 weeks of Swift lessons)
+8. Health check passes → script prints the URL
+
+Add another 3–5 min for Constructhub when using `--with constructhub`.
+
+Visit `https://bootcamp.yourdomain.com` (and `https://app.yourdomain.com`
+if you brought up Constructhub). The first request triggers Caddy to
+provision a TLS cert; it might pause 10–30 s while that happens.
+
+---
+
+## Multi-app architecture
+
+When you deploy both apps on the same VPS, they share **only the public
+edge** — TLS, port 80/443, and the Caddy reverse proxy. Everything else is
+isolated:
+
+```
+                ┌──────────────────────────────────────────────────┐
+                │                  ports 80 / 443                  │
+                │                       Caddy                      │
+                │   bootcamp.yourdomain.com   app.yourdomain.com   │
+                └──┬──────────────────────────────────┬────────────┘
+                   │  web-edge network (external)     │
+       ┌───────────┴──────────────┐         ┌─────────┴────────────┐
+       │      BootCamp stack      │         │   Constructhub stack │
+       │  ┌────┐ ┌────────┐       │         │  ┌──────────┐        │
+       │  │web │ │platform│       │         │  │ frontend │        │
+       │  └────┘ └───┬────┘       │         │  └────┬─────┘        │
+       │             │            │         │       │              │
+       │     ┌───────┴───────┐    │         │   ┌───┴───┐  ┌─────┐ │
+       │     │ swift-runner  │    │         │   │backend│  │redis│ │
+       │     │ kotlin-runner │    │         │   └───┬───┘  └─────┘ │
+       │     │ swift-lsp     │    │         │       │              │
+       │     │ postgres      │    │         │   ┌───┴────┐         │
+       │     └───────────────┘    │         │   │postgres│         │
+       │                          │         │   └────────┘         │
+       └──────────────────────────┘         └──────────────────────┘
+              `bootcamp` network               `constructhub-internal`
+                  (private)                          (private)
+```
+
+What's shared:
+- Caddy + TLS certs
+- The `web-edge` docker network (created by bootstrap.sh; sibling apps join it)
+- The VPS host itself (CPU, RAM, disk)
+
+What's NOT shared:
+- Postgres instances — each app has its own
+- Container networks for backend↔db traffic
+- Secrets, env files, volumes
+
+Adding a third app later is the same pattern: a new `deploy/sites/<app>/`
+directory with its own compose, joining `web-edge`, and a new block in the
+Caddyfile.
 
 ## 4. (Optional) Add Google OAuth
 

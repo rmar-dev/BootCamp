@@ -101,12 +101,12 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      WEB_ORIGIN: https://${DOMAIN}
-      FRONTEND_URL: https://${DOMAIN}
+      WEB_ORIGIN: https://${BOOTCAMP_DOMAIN:-${DOMAIN}}
+      FRONTEND_URL: https://${BOOTCAMP_DOMAIN:-${DOMAIN}}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_CALLBACK_URL: https://${DOMAIN}/api/auth/google/callback
+      GOOGLE_CALLBACK_URL: https://${BOOTCAMP_DOMAIN:-${DOMAIN}}/api/auth/google/callback
       AI_REVIEW_ENABLED: ${AI_REVIEW_ENABLED:-false}
       # Runner container names the platform's DockerRunner targets.
       SWIFT_RUNNER_CONTAINER: bootcamp-swift-runner-prod
@@ -135,6 +135,12 @@ services:
       HOSTNAME: "0.0.0.0"
 
   # ── Reverse proxy + TLS (the only public-facing service) ─────────────────
+  # Caddy joins TWO networks:
+  #   - `bootcamp` (private) — talks to web + platform
+  #   - `web-edge` (external) — talks to any sibling app's frontend that joins
+  #     the same network. This lets other compose files (e.g. Constructhub
+  #     under deploy/sites/) plug into the same TLS terminator without
+  #     merging compose files. bootstrap.sh creates the network if missing.
   caddy:
     image: caddy:2-alpine
     container_name: bootcamp-caddy
@@ -142,12 +148,15 @@ services:
     depends_on:
       - web
       - platform
-    networks: [bootcamp]
+    networks:
+      - bootcamp
+      - web-edge
     ports:
       - "80:80"
       - "443:443"
     environment:
-      DOMAIN: ${DOMAIN}
+      BOOTCAMP_DOMAIN: ${BOOTCAMP_DOMAIN:-${DOMAIN}}
+      CONSTRUCTHUB_DOMAIN: ${CONSTRUCTHUB_DOMAIN:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -156,6 +165,8 @@ services:
 networks:
   bootcamp:
     driver: bridge
+  web-edge:
+    external: true
 
 volumes:
   postgres-data:

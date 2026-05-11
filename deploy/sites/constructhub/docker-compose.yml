@@ -1,0 +1,96 @@
+# Constructhub on the same VPS as BootCamp.
+#
+# This file is intentionally THIN — Constructhub already ships production
+# Dockerfiles for its Go backend and Vite-built frontend (nginx + SPA). We
+# build from those and add a sibling Postgres + Redis. The frontend joins
+# the shared `web-edge` external network so the BootCamp Caddy can reach it
+# by container name (`constructhub-frontend`).
+#
+# Run (after Constructhub is cloned to /opt/constructhub on the VPS):
+#   cd /opt/bootcamp/deploy
+#   docker compose -f sites/constructhub/docker-compose.yml --env-file sites/constructhub/.env.prod up -d --build
+#
+# bootstrap.sh --with constructhub does all of that automatically.
+
+name: constructhub
+
+services:
+  # ── Database ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: constructhub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-constructhub}
+      POSTGRES_USER: ${POSTGRES_USER:-constructhub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [constructhub-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── Cache / queues ────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: constructhub-redis
+    restart: unless-stopped
+    networks: [constructhub-internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  # ── Backend (Go) ─────────────────────────────────────────────────────────
+  # Uses Constructhub's own Dockerfile, which builds the static binary and
+  # bundles golang-migrate so the entrypoint can apply migrations.
+  backend:
+    build:
+      context: ${CONSTRUCTHUB_REPO_PATH}/backend
+      dockerfile: Dockerfile
+    image: constructhub/backend:latest
+    container_name: constructhub-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [constructhub-internal]
+    environment:
+      # The actual env contract is owned by Constructhub itself; populate
+      # whatever the backend reads here. The placeholders below are the
+      # common ones; copy more from constructhub/backend/.env.example.
+      PORT: "8080"
+      DATABASE_URL: postgres://${POSTGRES_USER:-constructhub}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-constructhub}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      # Frontend nginx proxies API paths to http://backend:8080 — same name.
+
+  # ── Frontend (Vite SPA + nginx) ──────────────────────────────────────────
+  # This is the container Caddy reverse-proxies to. The internal nginx already
+  # SPA-fallbacks and proxies API paths to the backend container by name.
+  frontend:
+    build:
+      context: ${CONSTRUCTHUB_REPO_PATH}/frontend
+      dockerfile: Dockerfile
+    image: constructhub/frontend:latest
+    container_name: constructhub-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - constructhub-internal     # to reach backend
+      - web-edge                  # to be reachable by BootCamp's Caddy
+
+networks:
+  constructhub-internal:
+    driver: bridge
+  web-edge:
+    external: true
+
+volumes:
+  postgres-data:

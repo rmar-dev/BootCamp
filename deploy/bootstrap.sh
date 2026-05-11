@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
 #
-# BootCamp single-VPS bootstrap.
+# BootCamp single-VPS bootstrap, with optional sibling apps.
 #
-# Run on a fresh Ubuntu 22.04 / 24.04 box. Idempotent: rerun safely.
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/rmar-dev/BootCamp/main/deploy/bootstrap.sh | sudo bash -s -- demo.example.com
-# OR (after cloning):
-#   sudo ./bootstrap.sh demo.example.com
+# Usage on a fresh Ubuntu 22.04 / 24.04 box:
+#   sudo ./bootstrap.sh <bootcamp-domain> [--with constructhub <constructhub-domain>]
+#
+# Examples:
+#   sudo ./bootstrap.sh bootcamp.example.com
+#   sudo ./bootstrap.sh bootcamp.example.com --with constructhub app.constructhub.example.com
 #
 # What it does:
 #   1. Installs Docker engine + compose plugin (skips if present)
-#   2. Clones the repo to /opt/bootcamp (skips if present)
-#   3. Generates /opt/bootcamp/deploy/.env.prod with random secrets
-#   4. Builds + brings up the prod stack via docker compose
-#   5. Compiles the curriculum into the DB
-#
-# After it finishes, point your domain's DNS A record at this box's IP.
-# Caddy auto-provisions the TLS cert on the first request (~10–30s).
+#   2. Creates the shared `web-edge` docker network if missing
+#   3. Clones BootCamp to /opt/bootcamp (skips if present)
+#   4. Generates /opt/bootcamp/deploy/.env.prod with random secrets
+#   5. Builds + brings up the BootCamp stack
+#   6. (Optional) Clones Constructhub + brings it up under the same Caddy
 
 set -euo pipefail
 
@@ -26,16 +25,54 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-DOMAIN="${1:-}"
-if [[ -z "$DOMAIN" ]]; then
-  echo "Usage: $0 <domain>" >&2
-  echo "Example: $0 demo.example.com" >&2
+BOOTCAMP_DOMAIN="${1:-}"
+if [[ -z "$BOOTCAMP_DOMAIN" || "$BOOTCAMP_DOMAIN" == --* ]]; then
+  cat <<USAGE >&2
+Usage: $0 <bootcamp-domain> [--with constructhub <constructhub-domain>]
+
+Examples:
+  $0 bootcamp.example.com
+  $0 bootcamp.example.com --with constructhub app.constructhub.example.com
+USAGE
   exit 1
 fi
+shift
 
-REPO_URL="${BOOTCAMP_REPO_URL:-https://github.com/rmar-dev/BootCamp.git}"
-INSTALL_DIR="${BOOTCAMP_INSTALL_DIR:-/opt/bootcamp}"
-DEPLOY_DIR="$INSTALL_DIR/deploy"
+WITH_CONSTRUCTHUB=false
+CONSTRUCTHUB_DOMAIN=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --with)
+      shift
+      case "${1:-}" in
+        constructhub)
+          WITH_CONSTRUCTHUB=true
+          shift
+          CONSTRUCTHUB_DOMAIN="${1:-}"
+          if [[ -z "$CONSTRUCTHUB_DOMAIN" ]]; then
+            echo "ERROR: --with constructhub requires a domain argument" >&2
+            exit 1
+          fi
+          shift
+          ;;
+        *)
+          echo "ERROR: unknown app for --with: ${1:-}" >&2
+          exit 1
+          ;;
+      esac
+      ;;
+    *)
+      echo "ERROR: unrecognised argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+BOOTCAMP_REPO_URL="${BOOTCAMP_REPO_URL:-https://github.com/rmar-dev/BootCamp.git}"
+CONSTRUCTHUB_REPO_URL="${CONSTRUCTHUB_REPO_URL:-https://github.com/rmar-dev/constructhub.git}"
+BOOTCAMP_DIR="${BOOTCAMP_DIR:-/opt/bootcamp}"
+CONSTRUCTHUB_DIR="${CONSTRUCTHUB_DIR:-/opt/constructhub}"
+DEPLOY_DIR="$BOOTCAMP_DIR/deploy"
 
 log() { printf '\n\033[1;36m[bootstrap]\033[0m %s\n' "$*"; }
 
@@ -48,23 +85,31 @@ else
   log "Docker present: $(docker --version)"
 fi
 if ! docker compose version >/dev/null 2>&1; then
-  echo "ERROR: docker compose plugin missing. Reinstall Docker via get.docker.com." >&2
+  echo "ERROR: docker compose plugin missing. Reinstall via get.docker.com." >&2
   exit 1
 fi
 
-# ── 2. Repo ──────────────────────────────────────────────────────────────────
-if [[ ! -d "$INSTALL_DIR/.git" ]]; then
-  log "cloning $REPO_URL → $INSTALL_DIR"
-  git clone "$REPO_URL" "$INSTALL_DIR"
+# ── 2. Shared edge network ───────────────────────────────────────────────────
+if ! docker network inspect web-edge >/dev/null 2>&1; then
+  log "creating shared docker network: web-edge"
+  docker network create web-edge
 else
-  log "repo present; pulling latest"
-  git -C "$INSTALL_DIR" fetch --quiet
-  git -C "$INSTALL_DIR" reset --hard origin/main --quiet
+  log "shared network web-edge already exists"
+fi
+
+# ── 3. Clone BootCamp ────────────────────────────────────────────────────────
+if [[ ! -d "$BOOTCAMP_DIR/.git" ]]; then
+  log "cloning BootCamp → $BOOTCAMP_DIR"
+  git clone "$BOOTCAMP_REPO_URL" "$BOOTCAMP_DIR"
+else
+  log "BootCamp repo present; pulling latest"
+  git -C "$BOOTCAMP_DIR" fetch --quiet
+  git -C "$BOOTCAMP_DIR" reset --hard origin/main --quiet
 fi
 
 cd "$DEPLOY_DIR"
 
-# ── 3. .env.prod ─────────────────────────────────────────────────────────────
+# ── 4. .env.prod for BootCamp ────────────────────────────────────────────────
 ENV_FILE="$DEPLOY_DIR/.env.prod"
 if [[ ! -f "$ENV_FILE" ]]; then
   log "generating $ENV_FILE with random secrets"
@@ -74,73 +119,111 @@ if [[ ! -f "$ENV_FILE" ]]; then
   JWT_REFRESH=$(openssl rand -hex 32)
   POSTGRES_PASS=$(openssl rand -hex 16)
 
-  # GNU sed (Ubuntu default) — `-i` in place, no backup extension.
   sed -i "s|<JWT_SECRET>|$JWT_SECRET|g" "$ENV_FILE"
   sed -i "s|<JWT_REFRESH_SECRET>|$JWT_REFRESH|g" "$ENV_FILE"
   sed -i "s|<POSTGRES_PASSWORD>|$POSTGRES_PASS|g" "$ENV_FILE"
-  sed -i "s|^DOMAIN=.*|DOMAIN=$DOMAIN|" "$ENV_FILE"
+  sed -i "s|^BOOTCAMP_DOMAIN=.*|BOOTCAMP_DOMAIN=$BOOTCAMP_DOMAIN|" "$ENV_FILE"
 
   chmod 600 "$ENV_FILE"
-  log "wrote $ENV_FILE (0600). Edit it to add GOOGLE_CLIENT_ID etc. if needed."
+  log "wrote $ENV_FILE (0600)"
 else
-  log "$ENV_FILE exists; leaving it alone"
-  # Bring DOMAIN in line if the operator passed a new one.
-  current_domain=$(grep '^DOMAIN=' "$ENV_FILE" | head -1 | cut -d= -f2-)
-  if [[ "$current_domain" != "$DOMAIN" ]]; then
-    sed -i "s|^DOMAIN=.*|DOMAIN=$DOMAIN|" "$ENV_FILE"
-    log "updated DOMAIN to $DOMAIN"
+  log "$ENV_FILE exists; updating domain only"
+  sed -i "s|^BOOTCAMP_DOMAIN=.*|BOOTCAMP_DOMAIN=$BOOTCAMP_DOMAIN|" "$ENV_FILE"
+fi
+
+# If Constructhub is requested, set its domain in BootCamp's env so the
+# shared Caddyfile activates the second site block.
+if $WITH_CONSTRUCTHUB; then
+  if grep -q '^CONSTRUCTHUB_DOMAIN=' "$ENV_FILE"; then
+    sed -i "s|^CONSTRUCTHUB_DOMAIN=.*|CONSTRUCTHUB_DOMAIN=$CONSTRUCTHUB_DOMAIN|" "$ENV_FILE"
+  else
+    echo "CONSTRUCTHUB_DOMAIN=$CONSTRUCTHUB_DOMAIN" >> "$ENV_FILE"
   fi
 fi
 
-# ── 4. Build + bring up ─────────────────────────────────────────────────────
-log "building images (first run takes 5–10 min)"
+# ── 5. Build + bring up BootCamp ─────────────────────────────────────────────
+log "building BootCamp images (first run takes 5–10 min)"
 docker compose -f docker-compose.prod.yml --env-file .env.prod build --pull
 
-log "starting the stack"
+log "starting the BootCamp stack"
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
 
-# ── 5. Wait for the platform health before seeding ───────────────────────────
-log "waiting for platform to come online"
+# ── 6. Wait for platform health ──────────────────────────────────────────────
+log "waiting for BootCamp platform to come online"
 for i in $(seq 1 60); do
   if docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T platform \
-       node -e "fetch('http://127.0.0.1:3002/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
+       sh -c 'wget -q -O /dev/null http://127.0.0.1:3002/ 2>/dev/null || curl -s -o /dev/null http://127.0.0.1:3002/' 2>/dev/null; then
     log "platform up"
-    break
-  fi
-  # Fall back to plain TCP probe if /api/health isn't implemented.
-  if docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T platform \
-       sh -c 'wget -q -O /dev/null http://127.0.0.1:3002/ 2>/dev/null || curl -s -o /dev/null http://127.0.0.1:3002/'; then
-    log "platform responds (no /health route)"
     break
   fi
   sleep 2
 done
 
-# ── 6. Seed curriculum into the DB ───────────────────────────────────────────
-log "compiling curriculum into the production DB"
-"$DEPLOY_DIR/seed-curriculum.sh" || log "curriculum seed skipped/failed — run seed-curriculum.sh manually"
+# ── 7. Seed curriculum ───────────────────────────────────────────────────────
+log "compiling curriculum into the BootCamp DB"
+"$DEPLOY_DIR/seed-curriculum.sh" || log "curriculum seed skipped — run seed-curriculum.sh manually if needed"
 
-# ── 7. Done ──────────────────────────────────────────────────────────────────
+# ── 8. (Optional) Bring up Constructhub ──────────────────────────────────────
+if $WITH_CONSTRUCTHUB; then
+  log "── adding Constructhub at $CONSTRUCTHUB_DOMAIN ─────────────────────"
+
+  if [[ ! -d "$CONSTRUCTHUB_DIR/.git" ]]; then
+    log "cloning Constructhub → $CONSTRUCTHUB_DIR"
+    git clone "$CONSTRUCTHUB_REPO_URL" "$CONSTRUCTHUB_DIR"
+  else
+    log "Constructhub repo present; pulling latest"
+    git -C "$CONSTRUCTHUB_DIR" fetch --quiet
+    git -C "$CONSTRUCTHUB_DIR" reset --hard origin/main --quiet 2>/dev/null \
+      || git -C "$CONSTRUCTHUB_DIR" reset --hard origin/master --quiet
+  fi
+
+  CH_DEPLOY_DIR="$DEPLOY_DIR/sites/constructhub"
+  CH_ENV_FILE="$CH_DEPLOY_DIR/.env.prod"
+  if [[ ! -f "$CH_ENV_FILE" ]]; then
+    log "generating $CH_ENV_FILE with random secrets"
+    cp "$CH_DEPLOY_DIR/.env.example" "$CH_ENV_FILE"
+    CH_POSTGRES_PASS=$(openssl rand -hex 16)
+    sed -i "s|<POSTGRES_PASSWORD>|$CH_POSTGRES_PASS|g" "$CH_ENV_FILE"
+    sed -i "s|^CONSTRUCTHUB_REPO_PATH=.*|CONSTRUCTHUB_REPO_PATH=$CONSTRUCTHUB_DIR|" "$CH_ENV_FILE"
+    chmod 600 "$CH_ENV_FILE"
+    log "wrote $CH_ENV_FILE (0600)"
+  fi
+
+  log "building Constructhub images"
+  docker compose -f "$CH_DEPLOY_DIR/docker-compose.yml" --env-file "$CH_ENV_FILE" build --pull
+
+  log "starting the Constructhub stack"
+  docker compose -f "$CH_DEPLOY_DIR/docker-compose.yml" --env-file "$CH_ENV_FILE" up -d
+
+  log "reloading Caddy so the new site block takes effect"
+  docker compose -f docker-compose.prod.yml --env-file .env.prod \
+    exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+fi
+
+# ── 9. Done ──────────────────────────────────────────────────────────────────
 PUBLIC_IP=$(curl -fsS https://api.ipify.org 2>/dev/null || echo '<this-box>')
-cat <<EOF
-
-────────────────────────────────────────────────────────────────────────
- BootCamp is live.
-   URL:     https://$DOMAIN
-   IP:      $PUBLIC_IP
-   Env:     $ENV_FILE
-   Compose: cd $DEPLOY_DIR && docker compose -f docker-compose.prod.yml --env-file .env.prod <cmd>
-─────────────────────────────────────────────────────────────────────────
-
-Point an A record for $DOMAIN at $PUBLIC_IP, then load the URL.
-The first request triggers Caddy to fetch a Let's Encrypt cert (10–30 s).
-
-To enable Level-3 sourcekit-lsp (browser IntelliSense), restart with the
-\`lsp\` profile:
-  docker compose -f docker-compose.prod.yml --env-file .env.prod --profile lsp up -d swift-lsp
-
-Logs:
-  docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f --tail=200 platform
-  docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f --tail=200 web
-  docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f --tail=200 caddy
-EOF
+echo
+echo "────────────────────────────────────────────────────────────────────────"
+echo " Deployment complete."
+echo ""
+echo " BootCamp:      https://$BOOTCAMP_DOMAIN"
+if $WITH_CONSTRUCTHUB; then
+  echo " Constructhub:  https://$CONSTRUCTHUB_DOMAIN"
+fi
+echo " IP:            $PUBLIC_IP"
+echo " Env:           $ENV_FILE"
+echo "────────────────────────────────────────────────────────────────────────"
+echo ""
+echo "Make sure DNS A records exist:"
+echo "  $BOOTCAMP_DOMAIN   →   $PUBLIC_IP"
+if $WITH_CONSTRUCTHUB; then
+  echo "  $CONSTRUCTHUB_DOMAIN   →   $PUBLIC_IP"
+fi
+echo ""
+echo "Caddy provisions TLS certs on the first request to a fresh domain (~10–30s)."
+echo ""
+echo "Logs:"
+echo "  docker compose -f $DEPLOY_DIR/docker-compose.prod.yml --env-file $DEPLOY_DIR/.env.prod logs -f"
+if $WITH_CONSTRUCTHUB; then
+  echo "  docker compose -f $DEPLOY_DIR/sites/constructhub/docker-compose.yml --env-file $DEPLOY_DIR/sites/constructhub/.env.prod logs -f"
+fi
