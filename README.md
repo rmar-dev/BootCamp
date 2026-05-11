@@ -5,6 +5,10 @@
 
 A hybrid Obsidian vault: personal knowledge base + project documentation, in one place.
 
+> **Deploying to a VPS?** The single-VPS deploy bundle (Caddy + docker-compose +
+> bootstrap script) now lives in its own repo: [rmar-dev/vps-deploy](https://github.com/rmar-dev/vps-deploy).
+> It can host BootCamp alone or alongside other apps (currently: Constructhub).
+
 ## Open in Obsidian
 
 1. Open Obsidian
