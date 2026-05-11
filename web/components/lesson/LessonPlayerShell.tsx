@@ -201,6 +201,16 @@ function BlockRenderer({
         </div>
       )}
       <ExerciseBlock
+        // key forces a remount when the rendered exercise changes (when the
+        // student presses Continue and the next step is also an exercise).
+        // Without it, React reuses the same component instance across
+        // exercises and the renderers' internal state (editor source code,
+        // selected option, filled blanks, etc.) survives the transition —
+        // visible as "Continue keeps showing the previous exercise's code
+        // until I click Reset". Keying on (id, version) covers both the
+        // "different exercise" case and the rarer "same exercise, new
+        // version" case.
+        key={`${block.exercise.id}:${block.exercise.version}`}
         exercise={block.exercise}
         onAttempt={(status) => onAttempt(block.exercise.id, status)}
       />
