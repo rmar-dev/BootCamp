@@ -9,7 +9,21 @@ import { useActiveTrack } from '@/lib/track-context';
 export function Topbar() {
   const { streak, totalPoints } = useAuth();
   const { trackId, setTrackId, tracks, loading } = useActiveTrack();
-  const swiftKotlin = tracks.filter((t) => t.language === 'swift' || t.language === 'kotlin');
+  // Group by language — the topbar chip is a "switch between my languages"
+  // toggle, NOT a per-track tab list. Without this, every additional Swift
+  // track (Hello BootCamp, Swift Fundamentals, etc.) added a redundant
+  // "Swift" chip to the bar. Pick the currently-active track per language
+  // if the user is in one, otherwise the first.
+  const byLanguage = new Map<string, typeof tracks[number]>();
+  for (const t of tracks) {
+    if (t.language !== 'swift' && t.language !== 'kotlin') continue;
+    if (t.id === trackId) {
+      byLanguage.set(t.language, t);
+      continue;
+    }
+    if (!byLanguage.has(t.language)) byLanguage.set(t.language, t);
+  }
+  const swiftKotlin = Array.from(byLanguage.values());
   const value = trackId ?? swiftKotlin[0]?.id ?? '';
   return (
     <div className="topbar">

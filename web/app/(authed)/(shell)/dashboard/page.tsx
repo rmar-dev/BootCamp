@@ -37,14 +37,28 @@ export default function DashboardPage() {
     setError(null);
     setData(null);
     try {
-      const [dash, lb, track, entries] = await Promise.all([
+      const [dash, lb, track, perTrack] = await Promise.all([
         fetchDashboard(trackId),
         fetchMiniLeaderboard(),
         fetchTrack(trackId),
-        Promise.all(tracks.map((t) => fetchTrackProgress(t.id).then((p) => [t.id, p] as const))),
+        // Per-track progress is best-effort — a single 401 / 404 on a
+        // track the user isn't enrolled in shouldn't break the whole
+        // dashboard. Settle each independently and treat failures as
+        // "no progress data" (null).
+        Promise.allSettled(
+          tracks.map((t) =>
+            fetchTrackProgress(t.id).then((p) => [t.id, p] as const),
+          ),
+        ),
       ]);
       if (!track) throw new Error('Active track not found');
-      setData({ dash, lb, track, progressByTrack: new Map(entries) });
+      const progressByTrack = new Map<string, TrackProgress | null>();
+      for (const r of perTrack) {
+        if (r.status === 'fulfilled') {
+          progressByTrack.set(r.value[0], r.value[1]);
+        }
+      }
+      setData({ dash, lb, track, progressByTrack });
     } catch (e) {
       setError((e as Error).message);
     }
