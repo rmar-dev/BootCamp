@@ -292,7 +292,7 @@ function methodItem(monaco: Monaco, m: Method, range: monacoNS.IRange): Completi
   };
 }
 
-let registeredFor: Set<Monaco> = new Set();
+const registeredFor: Set<Monaco> = new Set();
 
 export function registerKotlinLanguageServices(monaco: Monaco): void {
   if (registeredFor.has(monaco)) return;

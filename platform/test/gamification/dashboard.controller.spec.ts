@@ -98,7 +98,9 @@ describe('DashboardController (e2e)', () => {
     expect(res.body.totalPoints).toBe(100);
     expect(Array.isArray(res.body.badges)).toBe(true);
 
-    const earnedBadge = res.body.badges.find((b: any) => b.id === 'first_submit');
+    // The dashboard exposes the badge's UUID as `id` and the human-readable
+    // slug as `code`. System badges are identified by their code.
+    const earnedBadge = res.body.badges.find((b: any) => b.code === 'first_submit');
     expect(earnedBadge).toBeDefined();
     expect(earnedBadge.earned).toBe(true);
   });

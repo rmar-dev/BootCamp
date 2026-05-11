@@ -358,7 +358,7 @@ function methodItem(
   };
 }
 
-let registeredFor: Set<Monaco> = new Set();
+const registeredFor: Set<Monaco> = new Set();
 
 /**
  * Idempotently install Swift language services into the given Monaco instance.

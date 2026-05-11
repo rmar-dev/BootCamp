@@ -32,7 +32,6 @@ import {
   Heading,
   Icon,
   Input,
-  Menu,
   Modal,
   Select,
   Textarea,

@@ -7,9 +7,14 @@ import { compileTrack } from '../src/compiler.js';
 import { stableId } from '../src/hasher.js';
 
 // ── DB setup ──────────────────────────────────────────────────────────────────
+// Local dev points at the docker-compose Postgres on :5433. CI provides its
+// own service-container Postgres and sets DATABASE_URL in the workflow env;
+// honor that when present so the test runs in both environments.
 
-process.env.DATABASE_URL =
-  'postgresql://bootcamp:bootcamp@localhost:5433/bootcamp?schema=public';
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL =
+    'postgresql://bootcamp:bootcamp@localhost:5433/bootcamp?schema=public';
+}
 
 const prisma = new PrismaClient();
 

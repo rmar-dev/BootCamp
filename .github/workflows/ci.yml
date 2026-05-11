@@ -138,6 +138,25 @@ jobs:
     defaults:
       run:
         working-directory: curriculum
+    # Postgres is needed because `compiler.test.ts` runs `compileTrack` end
+    # to end against a real DB. The parser / validator / payload tests do
+    # not need it but they share the same `npm test` command.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bootcamp
+          POSTGRES_PASSWORD: bootcamp
+          POSTGRES_DB: bootcamp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bootcamp"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://bootcamp:bootcamp@localhost:5432/bootcamp?schema=public
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -146,12 +165,17 @@ jobs:
           cache: npm
           cache-dependency-path: curriculum/package-lock.json
       - run: npm ci
+      - name: Prisma generate + migrate (test DB)
+        # `compileTrack` writes through Prisma; tables must exist.
+        run: |
+          npx prisma generate
+          npx prisma migrate deploy
       - name: Typecheck
         run: npx tsc --noEmit
-      - name: Unit + on-disk tests
+      - name: Unit + on-disk + compiler tests
         # The vitest suite includes `curriculum-files.test.ts`, which parses
         # every track.md + lesson.md on disk and validates exercise payloads.
-        # Authoring a broken lesson fails here, before merge.
+        # `compiler.test.ts` exercises the full author→DB pipeline.
         run: npm test
 
   # Single status check downstream tools (branch protection, required status)

@@ -14,7 +14,13 @@
  *   The Linux toolchain in the LSP container has Foundation but not iOS SDKs.
  *   For SwiftUI imports the LSP returns "module not found" — but the static
  *   provider continues to suggest SwiftUI types/methods. Both layers compose.
+ *
+ * NOTE: the dynamic imports below are typed as `any` because the peer deps
+ * are intentionally optional — the bundle compiles when they are missing.
+ * The runtime contract is checked by the surrounding try/catch.
  */
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type * as monacoNS from 'monaco-editor';
 

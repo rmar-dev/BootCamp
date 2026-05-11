@@ -65,11 +65,17 @@ export class BadgeRepository {
     cohortId: string | null;
     enrolledTrackIds: string[];
   }): Promise<Badge[]> {
+    // Caller (DashboardController) may pass `id: ''` to mean "no Student row
+    // yet — surface all public badges as locked." Including a `scopeId: ''`
+    // clause makes Postgres fail with "Error creating UUID, invalid length 0".
+    // Drop it when the id is empty.
     return this.prisma.badge.findMany({
       where: {
         OR: [
           { scopeKind: 'public' },
-          { scopeKind: 'private_to_student', scopeId: student.id },
+          ...(student.id.length > 0
+            ? [{ scopeKind: 'private_to_student' as const, scopeId: student.id }]
+            : []),
           ...(student.cohortId
             ? [{ scopeKind: 'cohort' as const, scopeId: student.cohortId }]
             : []),
