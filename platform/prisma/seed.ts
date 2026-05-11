@@ -54,6 +54,23 @@ async function main() {
     },
   });
 
+  // Test Admin — needed to demo admin-only paths (reassigning students across
+  // instructors, editing/deleting other instructors' skill trees, seeing
+  // every cohort in the picker instead of just the caller's, deleting
+  // anyone's project ratings, etc.). Password matches the other test users.
+  const adminHash = await bcrypt.hash('test1234', 10);
+  await prisma.user.upsert({
+    where: { email: 'admin@bootcamp.dev' },
+    update: {},
+    create: {
+      id: '11111111-1111-4111-8111-111111111111',
+      email: 'admin@bootcamp.dev',
+      name: 'Test Admin',
+      passwordHash: adminHash,
+      role: 'admin',
+    },
+  });
+
   // ---------------------------------------------------------------------------
   // Dev cohort + student enrollment so the instructor pages have something
   // to render. Without this, /instructor/students is empty and the skill-
