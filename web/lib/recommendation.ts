@@ -1,4 +1,5 @@
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { getApiBase } from './api-base';
+const BASE = getApiBase();
 
 export type Recommendation = {
   kind: 'continue' | 'concept_gap' | 'first_timer';

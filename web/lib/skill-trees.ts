@@ -1,3 +1,4 @@
+import { getApiBase } from './api-base';
 // Authored skill trees + per-(cohort, track) assignments. Backed by the
 // platform's SkillTree + CohortTrackAssignment tables via the
 // /api/instructor/skill-tree/* endpoints.
@@ -8,7 +9,7 @@
 // visible (and assignable) to every instructor; private trees only to
 // their author.
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 function authFetch(path: string, opts?: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, {

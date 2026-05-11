@@ -1,3 +1,4 @@
+import { getApiBase } from './api-base';
 export type RunOutcome =
   | 'passed'
   | 'failed'
@@ -14,7 +15,7 @@ export type RunResponse = {
   timedOut: boolean;
 };
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 function syntheticInternalError(message: string): RunResponse {
   return {

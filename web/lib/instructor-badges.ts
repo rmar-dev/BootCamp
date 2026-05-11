@@ -1,3 +1,4 @@
+import { getApiBase } from './api-base';
 // Client for /api/instructor/badges — list/create/update/delete + manual award.
 //
 // All endpoints require role=instructor or role=admin (enforced by NestJS
@@ -7,7 +8,7 @@
 // and it's blocked by the API itself.
 
 // Dev port is 3002 (TileWebApp squats on 3000); prod sets NEXT_PUBLIC_API_BASE.
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3002';
+const BASE = getApiBase();
 
 export type BadgeCriteriaKind =
   | 'system_first_submit'

@@ -1,6 +1,7 @@
 import type { LessonBlock } from './exercise-payloads';
+import { getApiBase } from './api-base';
 
-export const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+export const BASE = getApiBase();
 
 export type LessonAssignmentState =
   | { status: 'active'; id: string; selectedExerciseIds: string[] }

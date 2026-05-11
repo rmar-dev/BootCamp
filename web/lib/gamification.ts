@@ -4,8 +4,9 @@ import {
   type LeaderboardResponse,
   type LeaderboardEntry as LeaderboardEntryFull,
 } from './leaderboard.zod';
+import { getApiBase } from './api-base';
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 export type BadgeStatus = {
   id: string;

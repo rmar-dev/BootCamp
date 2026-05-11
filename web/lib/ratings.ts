@@ -1,9 +1,10 @@
+import { getApiBase } from './api-base';
 // Multi-rater public project ratings. Backed by:
 //   POST /api/instructor/ratings              (instructor-only write/upsert)
 //   DELETE /api/instructor/ratings/:id        (rater or admin)
 //   GET /api/attempts/:attemptId/ratings      (any authed user — public read)
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 function authFetch(path: string, opts?: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, {

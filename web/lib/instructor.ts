@@ -1,4 +1,5 @@
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+import { getApiBase } from './api-base';
+const BASE = getApiBase();
 
 function authFetch(path: string, opts?: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, {

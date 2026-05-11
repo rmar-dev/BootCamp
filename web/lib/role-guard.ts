@@ -1,9 +1,10 @@
 import { cookies } from 'next/headers';
+import { getApiBase } from './api-base';
 import { redirect } from 'next/navigation';
 import type { UserResponse } from './auth';
 
 // Dev port is 3002 (TileWebApp squats on 3000); prod sets NEXT_PUBLIC_API_BASE.
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3002';
+const BASE = getApiBase();
 
 /**
  * Server-side gate for any /instructor/* route. Resolves the calling user via

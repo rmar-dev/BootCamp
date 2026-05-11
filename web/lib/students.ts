@@ -1,7 +1,8 @@
+import { getApiBase } from './api-base';
 // Instructor-facing student roster + assignment + difficulty controls.
 // Backed by /api/instructor/students/* endpoints.
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 function authFetch(path: string, opts?: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, {

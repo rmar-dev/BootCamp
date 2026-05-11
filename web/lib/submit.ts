@@ -1,4 +1,5 @@
 import type { ExerciseAttemptStatus } from './exercise-payloads';
+import { getApiBase } from './api-base';
 
 export type SubmitResponse = {
   passed: boolean;
@@ -13,7 +14,7 @@ export type SubmitResponse = {
   newAttemptStatus: ExerciseAttemptStatus;
 };
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 export async function submitExercise(
   exerciseId: string,

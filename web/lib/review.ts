@@ -1,3 +1,4 @@
+import { getApiBase } from './api-base';
 export type ReviewQueueItem = {
   cardId: string;
   exerciseId: string;
@@ -26,7 +27,7 @@ export type ReviewSubmitResult = {
   };
 };
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 export async function fetchReviewQueue(): Promise<ReviewQueueResponse> {
   const res = await fetch(`${BASE}/api/review/queue`, { credentials: 'include' });

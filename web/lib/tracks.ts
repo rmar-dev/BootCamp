@@ -1,3 +1,4 @@
+import { getApiBase } from './api-base';
 export type TrackSummary = {
   id: string;
   version: number;
@@ -20,7 +21,7 @@ export type LessonSummary = {
 
 export type TrackDetail = TrackSummary & { lessons: LessonSummary[] };
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 export async function fetchTracks(): Promise<TrackSummary[]> {
   const res = await fetch(`${BASE}/api/tracks`, { credentials: 'include' });

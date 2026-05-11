@@ -1,3 +1,4 @@
+import { getApiBase } from './api-base';
 export type LessonProgressState = 'not_started' | 'in_progress' | 'complete';
 
 export type LessonProgress = {
@@ -25,7 +26,7 @@ export type ConceptsProgress = {
   concepts: ConceptProgress[];
 };
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 export async function fetchTrackProgress(trackId: string): Promise<TrackProgress | null> {
   const res = await fetch(`${BASE}/api/progress/tracks/${trackId}`, { credentials: 'include' });

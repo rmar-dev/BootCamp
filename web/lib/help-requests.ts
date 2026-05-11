@@ -1,8 +1,9 @@
+import { getApiBase } from './api-base';
 // Help requests — the contextual "Need help?" surface anchored to a lesson,
 // exercise, or attempt. Backed by /api/help-requests/* (student-facing) and
 // /api/instructor/help-requests (instructor inbox).
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:3000';
+const BASE = getApiBase();
 
 function authFetch(path: string, opts?: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, {
