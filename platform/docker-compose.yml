@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: bootcamp-postgres
+    environment:
+      POSTGRES_USER: bootcamp
+      POSTGRES_PASSWORD: bootcamp
+      POSTGRES_DB: bootcamp
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+
+  swift-runner:
+    image: swift:5.10
+    container_name: bootcamp-swift-runner
+    command: tail -f /dev/null
+    read_only: true
+    network_mode: none
+    tmpfs:
+      - /tmp:exec,mode=1777
+      - /work:exec,mode=1777
+    mem_limit: 256m
+    cpus: 1.0
+
+  kotlin-runner:
+    build:
+      context: ./docker/kotlin-runner
+      args:
+        KOTLIN_VERSION: 1.9.25
+    image: bootcamp/kotlin-runner:1.9.25
+    container_name: bootcamp-kotlin-runner
+    command: tail -f /dev/null
+    read_only: true
+    network_mode: none
+    tmpfs:
+      - /tmp:exec,mode=1777
+      - /work:exec,mode=1777
+    mem_limit: 256m
+    cpus: 1.0
+
+  # Sourcekit-lsp WebSocket bridge for browser-side semantic IntelliSense.
+  # Optional service — gated by the `lsp` profile so a plain `docker compose up`
+  # does not pull this in. Enable with: `docker compose --profile lsp up -d`.
+  # On the web side, set `NEXT_PUBLIC_LSP_URL=ws://localhost:4500` for the
+  # browser to connect; absent that the editor uses the static providers only.
+  swift-lsp:
+    build:
+      context: ./docker/swift-lsp
+    image: bootcamp/swift-lsp:5.10
+    container_name: bootcamp-swift-lsp
+    profiles: ["lsp"]
+    ports:
+      - "4500:4500"
+    mem_limit: 1g
+    cpus: 2.0
+    restart: unless-stopped
+    environment:
+      # Concurrency safety net — keeps memory bounded under load.
+      # Tune up if you have headroom; LSP_MAX_SESSIONS * ~200MB ≈ steady-state RAM.
+      MAX_SESSIONS: "8"
+      IDLE_TIMEOUT_MS: "300000"   # 5 min — idle sessions are evicted
+      HEARTBEAT_MS: "30000"       # 30 s — server-side WS keepalive

@@ -1,0 +1,550 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================
+// Content half
+// =====================
+
+enum Language {
+  swift
+  kotlin
+}
+
+enum TrackKind {
+  placement
+  fundamentals
+  capstone
+}
+
+enum LessonLevel {
+  beginner
+  intermediate
+  advanced
+}
+
+enum BlockKind {
+  explanation
+  exercise
+  video
+}
+
+enum ExerciseType {
+  code
+  fix_bug
+  fill_blank
+  predict_output
+  multiple_choice
+  capstone_submission
+  visual_playground
+}
+
+enum CohortLength {
+  four_week
+  twelve_week
+}
+
+model Track {
+  id             String    @db.Uuid
+  version        Int
+  title          String
+  language       Language
+  kind           TrackKind
+  description    String
+  lessonIds      String[]  @db.Uuid
+  lessonVersions Int[]
+  publishedAt    DateTime?
+  contentHash    String?
+  starterRepoUrl String?
+
+  @@id([id, version])
+}
+
+model Lesson {
+  id          String        @db.Uuid
+  version     Int
+  trackId     String        @db.Uuid
+  position    Int
+  title       String
+  level       LessonLevel
+  summary     String
+  blockIds    String[]      @db.Uuid
+  publishedAt DateTime?
+  contentHash String?
+  cohortGate  CohortLength?
+
+  blocks Block[]
+
+  @@id([id, version])
+  @@index([trackId])
+}
+
+model Block {
+  id                  String    @id @db.Uuid
+  lessonId            String    @db.Uuid
+  lessonVersion       Int
+  position            Int
+  kind                BlockKind
+  explanationMarkdown String?
+  exerciseId          String?   @db.Uuid
+  exerciseVersion     Int?
+  // Video block fields. Populated only when kind = video; null otherwise.
+  videoUrl            String?
+  videoTitle          String?
+  videoDescription    String?
+  videoDurationLabel  String?
+  videoPosterUrl      String?
+
+  lesson Lesson @relation(fields: [lessonId, lessonVersion], references: [id, version])
+
+  @@index([lessonId, lessonVersion])
+}
+
+model Exercise {
+  id             String             @db.Uuid
+  version        Int
+  lessonId       String             @db.Uuid
+  promptMarkdown String
+  type           ExerciseType
+  payload        Json
+  pointsMax      Int
+  hints          String[]
+  concepts       String[]
+  publishedAt    DateTime?
+  contentHash    String?
+  // Instructor-authored exercises carry authorId; curriculum-authored
+  // exercises leave it null. Visibility/scopeId together form a discriminated
+  // scope (private_to_student → scopeId=studentId; cohort → scopeId=cohortId;
+  // track → scopeId=trackId; public → scopeId NULL).
+  authorId       String?            @db.Uuid
+  visibility     ExerciseVisibility @default(public)
+  scopeId        String?            @db.Uuid
+
+  @@id([id, version])
+  @@index([visibility, scopeId])
+  @@index([authorId])
+}
+
+// =====================
+// State half
+// =====================
+
+enum EnrollmentStatus {
+  active
+  completed
+  paused
+}
+
+enum UserRole {
+  student
+  instructor
+  admin
+}
+
+enum DifficultyBaseline {
+  easy
+  standard
+  challenging
+}
+
+enum ExerciseVisibility {
+  private_to_student
+  cohort
+  track
+  public
+}
+
+enum HelpAnchorKind {
+  lesson
+  exercise
+  attempt
+}
+
+enum HelpRequestStatus {
+  open
+  answered
+  resolved
+}
+
+model User {
+  id           String   @id @db.Uuid
+  email        String   @unique
+  name         String
+  passwordHash String?
+  role         UserRole @default(student)
+  googleId     String?  @unique
+  createdAt    DateTime @default(now())
+  student      Student?
+}
+
+model Student {
+  id           String   @id @db.Uuid
+  userId       String?  @unique @db.Uuid
+  user         User?    @relation(fields: [userId], references: [id])
+  name         String
+  email        String   @unique
+  cohortId     String?  @db.Uuid
+  // Per-student assigned instructor (User.id where role='instructor').
+  // Independent of Cohort.instructorId — defaults to cohort lead at student
+  // creation but does NOT cascade if cohort lead changes. Reassignment is
+  // explicit. Null = unassigned (claimable from /instructor/students).
+  instructorId String?  @db.Uuid
+  // Instructor-assigned language. Null = unset (student sees all tracks);
+  // when set, student-facing track listings are filtered to this language.
+  // Mutated only via PUT /api/instructor/students/:id/language by the
+  // assigned instructor or an admin.
+  language     Language?
+  createdAt    DateTime @default(now())
+
+  @@index([instructorId])
+}
+
+model Cohort {
+  id                       String       @id @db.Uuid
+  name                     String
+  instructorId             String       @db.Uuid
+  startDate                DateTime
+  cohortLength             CohortLength @default(four_week)
+  exercisesPerLessonTarget Int          @default(4)
+}
+
+model Enrollment {
+  id                   String           @id @db.Uuid
+  studentId            String           @db.Uuid
+  trackId              String           @db.Uuid
+  trackVersion         Int
+  enrolledAt           DateTime         @default(now())
+  assignedLevel        LessonLevel
+  currentLessonId      String?          @db.Uuid
+  currentLessonVersion Int?
+  status               EnrollmentStatus @default(active)
+
+  @@unique([studentId, trackId])
+  @@index([studentId])
+}
+
+model Attempt {
+  id                     String   @id @db.Uuid
+  studentId              String   @db.Uuid
+  exerciseId             String   @db.Uuid
+  exerciseVersion        Int
+  submittedAt            DateTime @default(now())
+  submissionPayload      Json
+  passed                 Boolean
+  hintsUsedCount         Int
+  failedAttemptsBefore   Int
+  pointsAwarded          Int
+  approvedByInstructorId String?  @db.Uuid
+
+  @@index([studentId, exerciseId])
+}
+
+model ExerciseResult {
+  id            String    @id @db.Uuid
+  studentId     String    @db.Uuid
+  exerciseId    String    @db.Uuid
+  bestAttemptId String    @db.Uuid
+  passed        Boolean
+  pointsEarned  Int
+  attemptsCount Int
+  firstPassedAt DateTime?
+
+  @@unique([studentId, exerciseId])
+}
+
+model StudentBadge {
+  id        String   @id @db.Uuid
+  studentId String   @db.Uuid
+  // Free-form code. Matches Badge.code for both system and instructor-defined
+  // badges; deliberately NOT a Prisma relation FK so awarded history survives
+  // a Badge row being deleted (rows are simply hidden by the join in
+  // BadgeService.listForStudent).
+  badgeId   String
+  earnedAt  DateTime @default(now())
+  // For manual_award badges, the instructor who granted it. Null for system
+  // and threshold-based auto-awards.
+  awardedBy String?  @db.Uuid
+
+  @@unique([studentId, badgeId])
+  @@index([studentId])
+}
+
+// Instructor-authored or system-seeded badge definitions. The 8 original
+// hardcoded badges live here as `system=true` rows with `criteriaKind`
+// matching their hard-coded id-switch in BadgeService. Instructors can author
+// new badges with criteria limited to: manual_award, points_threshold,
+// streak_threshold, exercises_passed.
+//
+// Editing/deletion: only the author (or admin) may edit/delete a non-system
+// badge. System badges are read-only; their evaluation is wired into
+// BadgeService and must not be removed.
+model Badge {
+  id             String            @id @default(uuid()) @db.Uuid
+  // Stable string code referenced by StudentBadge.badgeId. System badges keep
+  // their original codes ("first_submit", "streak_3", ...) so existing awards
+  // remain valid; instructor badges get an auto-generated slug + suffix.
+  code           String            @unique
+  name           String
+  description    String
+  icon           String
+  criteriaKind   BadgeCriteriaKind
+  // Numeric configuration for points_threshold / streak_threshold /
+  // exercises_passed. Null for system badges and manual_award.
+  thresholdValue Int?
+  scopeKind      BadgeScopeKind    @default(public)
+  // Discriminated by scopeKind: cohort → Cohort.id, track → Track.id (any
+  // version), private_to_student → Student.id, public → null.
+  scopeId        String?           @db.Uuid
+  // User.id of the instructor who authored the badge. Null for system badges.
+  authorUserId   String?           @db.Uuid
+  // System badges are seeded in migration and cannot be edited or deleted.
+  system         Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([scopeKind, scopeId])
+  @@index([authorUserId])
+}
+
+enum BadgeCriteriaKind {
+  // System (hardcoded evaluators in BadgeService) — kept for the 8 originals.
+  system_first_submit
+  system_first_pass
+  system_streak_3
+  system_streak_7
+  system_all_types
+  system_points_100
+  system_points_500
+  system_perfect_lesson
+  // Instructor-defined.
+  manual_award
+  points_threshold
+  streak_threshold
+  exercises_passed
+}
+
+enum BadgeScopeKind {
+  public
+  cohort
+  track
+  private_to_student
+}
+
+model CodeReview {
+  id        String   @id @db.Uuid
+  attemptId String   @unique @db.Uuid
+  studentId String   @db.Uuid
+  markdown  String
+  createdAt DateTime @default(now())
+
+  @@index([studentId])
+}
+
+model InstructorReview {
+  id           String   @id @db.Uuid
+  attemptId    String   @unique @db.Uuid
+  instructorId String   @db.Uuid
+  markdown     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  messages ReviewMessage[]
+
+  @@index([instructorId])
+}
+
+model ReviewMessage {
+  id                 String   @id @db.Uuid
+  instructorReviewId String   @db.Uuid
+  authorId           String   @db.Uuid
+  body               String
+  createdAt          DateTime @default(now())
+
+  instructorReview InstructorReview @relation(fields: [instructorReviewId], references: [id])
+
+  @@index([instructorReviewId])
+}
+
+model ReviewCard {
+  id             String    @id @db.Uuid
+  studentId      String    @db.Uuid
+  exerciseId     String    @db.Uuid
+  step           Int
+  nextDueAt      DateTime
+  lastReviewedAt DateTime?
+  createdAt      DateTime  @default(now())
+  retiredAt      DateTime?
+
+  @@unique([studentId, exerciseId])
+  @@index([studentId, nextDueAt])
+  @@index([studentId, retiredAt])
+}
+
+model ReviewAttempt {
+  id           String   @id @db.Uuid
+  reviewCardId String   @db.Uuid
+  studentId    String   @db.Uuid
+  exerciseId   String   @db.Uuid
+  submittedAt  DateTime @default(now())
+  passed       Boolean
+
+  @@index([studentId, submittedAt])
+  @@index([reviewCardId])
+}
+
+model LessonAssignment {
+  id                  String    @id @default(uuid()) @db.Uuid
+  studentId           String    @db.Uuid
+  lessonId            String    @db.Uuid
+  lessonVersion       Int
+  selectedExerciseIds String[]  @db.Uuid
+  selectedAt          DateTime  @default(now())
+  completedAt         DateTime?
+
+  @@index([studentId, lessonId])
+  @@index([studentId, completedAt])
+}
+
+// =====================
+// Instructor expansion (sub-project G)
+// =====================
+
+// Per-student difficulty dial. One row per student; defaults to 'standard'
+// when no row exists (LessonAssemblerService falls back via getOrDefault).
+model StudentDifficulty {
+  studentId String             @id @db.Uuid
+  baseline  DifficultyBaseline @default(standard)
+  updatedAt DateTime           @updatedAt
+  // updatedBy is User.id of the instructor who last set the baseline.
+  updatedBy String             @db.Uuid
+}
+
+// Per-(student, exercise) override layered on top of the dial. All override
+// fields are nullable so an instructor can extend time without swapping etc.
+// swapToExerciseId points to a different Exercise; the assembler substitutes
+// it during pickByDifficulty.
+model ExamDifficultyOverride {
+  id                    String   @id @default(uuid()) @db.Uuid
+  studentId             String   @db.Uuid
+  exerciseId            String   @db.Uuid
+  exerciseVersion       Int
+  extendTimeMs          Int?
+  optional              Boolean  @default(false)
+  swapToExerciseId      String?  @db.Uuid
+  swapToExerciseVersion Int?
+  updatedAt             DateTime @updatedAt
+  updatedBy             String   @db.Uuid
+
+  @@unique([studentId, exerciseId])
+  @@index([studentId])
+}
+
+// Student-raised help request anchored to a lesson, exercise, or attempt.
+// instructorId is captured at creation from Student.instructorId and does
+// NOT migrate if the student is later reassigned — the request stays with
+// whoever was supposed to handle it.
+model HelpRequest {
+  id           String            @id @default(uuid()) @db.Uuid
+  studentId    String            @db.Uuid
+  instructorId String            @db.Uuid
+  anchorKind   HelpAnchorKind
+  anchorId     String            @db.Uuid
+  title        String
+  status       HelpRequestStatus @default(open)
+  createdAt    DateTime          @default(now())
+  resolvedAt   DateTime?
+
+  messages HelpMessage[]
+
+  @@index([instructorId, status])
+  @@index([studentId, status])
+}
+
+model HelpMessage {
+  id            String   @id @default(uuid()) @db.Uuid
+  helpRequestId String   @db.Uuid
+  authorId      String   @db.Uuid
+  body          String
+  createdAt     DateTime @default(now())
+
+  helpRequest HelpRequest @relation(fields: [helpRequestId], references: [id])
+
+  @@index([helpRequestId])
+}
+
+// Multi-rater public project rating. Zero-or-many rows per Attempt; unique on
+// (attemptId, raterUserId) so a rater updates rather than duplicates.
+// Orthogonal to Attempt.approvedByInstructorId — approval gates pass/fail;
+// rating is advisory feedback for the student.
+model ProjectRating {
+  id          String   @id @default(uuid()) @db.Uuid
+  attemptId   String   @db.Uuid
+  raterUserId String   @db.Uuid
+  score       Int
+  comment     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([attemptId, raterUserId])
+  @@index([attemptId])
+}
+
+// First-class authored skill tree: a named, reusable lesson sequence for a
+// track, optionally shared across instructors. Replaces the single-row
+// CohortTrackOverride model — an instructor can now author MANY trees per
+// track and reuse them across cohorts (or share with peers via visibility).
+//
+// Editing semantics: only the author (or admin) can update / delete a tree.
+// Public trees are visible to every instructor for assignment but remain
+// owned by their author for edits.
+model SkillTree {
+  id           String              @id @default(uuid()) @db.Uuid
+  trackId      String              @db.Uuid
+  name         String
+  description  String?
+  // User.id of the instructor who created the tree.
+  authorUserId String              @db.Uuid
+  visibility   SkillTreeVisibility @default(private)
+  // Ordered lesson ids. Versions resolve to "latest published" per id at
+  // student-read time so a tree survives unrelated lesson re-versioning.
+  lessonIds    String[]            @db.Uuid
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  assignments CohortTrackAssignment[]
+
+  @@index([trackId])
+  @@index([authorUserId])
+  @@index([visibility, trackId])
+}
+
+enum SkillTreeVisibility {
+  private
+  public
+}
+
+// Activates a SkillTree for a (cohort, track) pair. Composite PK ensures one
+// active tree per cohort+track. Deleting the row reverts the cohort to the
+// canonical Track.lessonIds — the SkillTree itself is preserved.
+//
+// Only the SkillTree's author (or admin) can edit the tree, but ANY
+// instructor can assign a public tree to a cohort they lead. Assignments
+// don't transfer ownership; they're a pointer.
+model CohortTrackAssignment {
+  cohortId    String   @db.Uuid
+  trackId     String   @db.Uuid
+  skillTreeId String   @db.Uuid
+  assignedAt  DateTime @default(now())
+  // User.id of the instructor who set the assignment (audit-log seed).
+  assignedBy  String   @db.Uuid
+
+  skillTree SkillTree @relation(fields: [skillTreeId], references: [id], onDelete: Restrict)
+
+  @@id([cohortId, trackId])
+  @@index([skillTreeId])
+}

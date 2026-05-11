@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@platform/*": ["../platform/src/*"]
+    },
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*", "compile.ts", "tests/**/*"]
+}

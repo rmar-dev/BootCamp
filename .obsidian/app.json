@@ -1,0 +1,10 @@
+{
+  "newFileLocation": "folder",
+  "newFileFolderPath": "zettel",
+  "attachmentFolderPath": "resources/attachments",
+  "useMarkdownLinks": false,
+  "newLinkFormat": "relative",
+  "alwaysUpdateLinks": true,
+  "showLineNumber": true,
+  "spellcheck": true
+}

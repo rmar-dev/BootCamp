@@ -1,0 +1,4 @@
+node_modules
+package-lock.json
+smoke-cap.js
+.smoke-node_modules

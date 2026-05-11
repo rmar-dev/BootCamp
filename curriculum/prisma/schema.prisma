@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================
+// Content half
+// =====================
+
+enum Language {
+  swift
+  kotlin
+}
+
+enum TrackKind {
+  placement
+  fundamentals
+  capstone
+}
+
+enum LessonLevel {
+  beginner
+  intermediate
+  advanced
+}
+
+enum BlockKind {
+  explanation
+  exercise
+  video
+}
+
+enum CohortLength {
+  four_week
+  twelve_week
+}
+
+enum ExerciseType {
+  code
+  fix_bug
+  fill_blank
+  predict_output
+  multiple_choice
+  capstone_submission
+  visual_playground
+}
+
+model Track {
+  id              String     @db.Uuid
+  version         Int
+  title           String
+  language        Language
+  kind            TrackKind
+  description     String
+  lessonIds       String[]   @db.Uuid
+  lessonVersions  Int[]
+  starterRepoUrl  String?
+  publishedAt     DateTime?
+  contentHash     String?
+
+  @@id([id, version])
+}
+
+model Lesson {
+  id                  String       @db.Uuid
+  version             Int
+  trackId             String       @db.Uuid
+  position            Int
+  title               String
+  level               LessonLevel
+  summary             String
+  blockIds            String[]     @db.Uuid
+  publishedAt         DateTime?
+  contentHash         String?
+  cohortGate          CohortLength?
+
+  blocks              Block[]
+
+  @@id([id, version])
+  @@index([trackId])
+}
+
+model Block {
+  id                   String     @id @db.Uuid
+  lessonId             String     @db.Uuid
+  lessonVersion        Int
+  position             Int
+  kind                 BlockKind
+  explanationMarkdown  String?
+  exerciseId           String?    @db.Uuid
+  exerciseVersion      Int?
+  // Video block fields. Populated only when kind = video; null otherwise.
+  videoUrl             String?
+  videoTitle           String?
+  videoDescription     String?
+  videoDurationLabel   String?
+  videoPosterUrl       String?
+
+  lesson               Lesson     @relation(fields: [lessonId, lessonVersion], references: [id, version])
+
+  @@index([lessonId, lessonVersion])
+}
+
+model Exercise {
+  id              String        @db.Uuid
+  version         Int
+  lessonId        String        @db.Uuid
+  promptMarkdown  String
+  type            ExerciseType
+  payload         Json
+  pointsMax       Int
+  hints           String[]
+  concepts        String[]
+  publishedAt     DateTime?
+  contentHash     String?
+
+  @@id([id, version])
+}
+
+// =====================
+// State half
+// =====================
+
+enum EnrollmentStatus {
+  active
+  completed
+  paused
+}
+
+enum UserRole {
+  student
+  instructor
+  admin
+}
+
+model User {
+  id            String    @id @db.Uuid
+  email         String    @unique
+  name          String
+  passwordHash  String?
+  role          UserRole  @default(student)
+  googleId      String?   @unique
+  createdAt     DateTime  @default(now())
+  student       Student?
+}
+
+model Student {
+  id        String   @id @db.Uuid
+  userId    String?  @unique @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id])
+  name      String
+  email     String   @unique
+  cohortId  String?  @db.Uuid
+  createdAt DateTime @default(now())
+}
+
+model Cohort {
+  id           String   @id @db.Uuid
+  name         String
+  instructorId String   @db.Uuid
+  startDate    DateTime
+}
+
+model Enrollment {
+  id                    String           @id @db.Uuid
+  studentId             String           @db.Uuid
+  trackId               String           @db.Uuid
+  trackVersion          Int
+  enrolledAt            DateTime         @default(now())
+  assignedLevel         LessonLevel
+  currentLessonId       String?          @db.Uuid
+  currentLessonVersion  Int?
+  status                EnrollmentStatus @default(active)
+
+  @@unique([studentId, trackId])
+  @@index([studentId])
+}
+
+model Attempt {
+  id                    String   @id @db.Uuid
+  studentId             String   @db.Uuid
+  exerciseId            String   @db.Uuid
+  exerciseVersion       Int
+  submittedAt           DateTime @default(now())
+  submissionPayload     Json
+  passed                Boolean
+  hintsUsedCount        Int
+  failedAttemptsBefore  Int
+  pointsAwarded         Int
+
+  @@index([studentId, exerciseId])
+}
+
+model ExerciseResult {
+  id              String    @id @db.Uuid
+  studentId       String    @db.Uuid
+  exerciseId      String    @db.Uuid
+  bestAttemptId   String    @db.Uuid
+  passed          Boolean
+  pointsEarned    Int
+  attemptsCount   Int
+  firstPassedAt   DateTime?
+
+  @@unique([studentId, exerciseId])
+}
+
+model StudentBadge {
+  id        String   @id @db.Uuid
+  studentId String   @db.Uuid
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  @@unique([studentId, badgeId])
+  @@index([studentId])
+}
+
+model CodeReview {
+  id         String   @id @db.Uuid
+  attemptId  String   @unique @db.Uuid
+  studentId  String   @db.Uuid
+  markdown   String
+  createdAt  DateTime @default(now())
+  @@index([studentId])
+}
+
+model InstructorReview {
+  id            String   @id @db.Uuid
+  attemptId     String   @unique @db.Uuid
+  instructorId  String   @db.Uuid
+  markdown      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages ReviewMessage[]
+
+  @@index([instructorId])
+}
+
+model ReviewMessage {
+  id                  String   @id @db.Uuid
+  instructorReviewId  String   @db.Uuid
+  authorId            String   @db.Uuid
+  body                String
+  createdAt           DateTime @default(now())
+
+  instructorReview InstructorReview @relation(fields: [instructorReviewId], references: [id])
+
+  @@index([instructorReviewId])
+}

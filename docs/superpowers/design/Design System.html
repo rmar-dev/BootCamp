@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BootCamp — Design System</title>
+<link rel="stylesheet" href="tokens.css" />
+<link rel="stylesheet" href="components.css" />
+<style>
+  body { background: var(--bg-0); }
+  .ds-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+  .ds-side {
+    border-right: 1px solid var(--line-1);
+    padding: 28px 18px;
+    position: sticky; top: 0; height: 100vh; overflow: auto;
+    background: rgba(7,9,13,0.7);
+    backdrop-filter: blur(8px);
+  }
+  .ds-side-section { font-size: var(--t-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3); padding: 16px 10px 6px; }
+  .ds-nav-link {
+    display: block; padding: 7px 10px; border-radius: var(--r-sm);
+    font-size: var(--t-sm); color: var(--text-2);
+    transition: background var(--d-fast), color var(--d-fast);
+  }
+  .ds-nav-link:hover { background: var(--bg-2); color: var(--text-1); }
+  .ds-nav-link.active { background: var(--brand-bg); color: var(--peacock-200); }
+
+  .ds-main { padding: 56px 64px; max-width: 1180px; margin: 0 auto; }
+  .ds-section { padding: 56px 0; border-top: 1px solid var(--line-1); }
+  .ds-section:first-of-type { border-top: 0; padding-top: 0; }
+  .ds-section h2 { margin-bottom: 6px; }
+  .ds-section .muted { margin-bottom: 28px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+
+  /* Color swatches */
+  .swatch { border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line-1); background: var(--bg-2); }
+  .swatch-c { aspect-ratio: 16/10; }
+  .swatch-meta { padding: 10px 12px; }
+  .swatch-name { font-size: var(--t-sm); font-weight: 600; }
+  .swatch-val { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--text-3); margin-top: 2px; }
+
+  /* Type specimen */
+  .type-row {
+    display: grid; grid-template-columns: 180px 1fr; gap: 24px;
+    padding: 18px 0; border-bottom: 1px solid var(--line-1);
+    align-items: baseline;
+  }
+  .type-meta { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--text-3); }
+  .type-spec { color: var(--text-1); }
+
+  /* Spacing visual */
+  .sp-row { display: flex; align-items: center; gap: 16px; padding: 8px 0; font-family: var(--font-mono); font-size: var(--t-sm); color: var(--text-3); }
+  .sp-bar { background: var(--peacock-400); height: 12px; border-radius: 2px; }
+
+  /* Radius visual */
+  .r-card { aspect-ratio: 1; background: var(--grad-peacock-soft); border: 1px solid var(--line-2); display: grid; place-items: end; padding: 10px; font-family: var(--font-mono); font-size: var(--t-xs); color: var(--text-2); }
+
+  /* Iconography placeholder */
+  .icon-cell { aspect-ratio: 1; background: var(--bg-2); border: 1px solid var(--line-1); border-radius: var(--r-sm); display: grid; place-items: center; color: var(--text-2); }
+
+  /* Content card preview */
+  .preview { background: var(--bg-2); border: 1px solid var(--line-1); border-radius: var(--r-lg); padding: 28px; }
+  .preview .label { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--text-3); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  /* Hero */
+  .ds-hero {
+    padding: 80px 0 60px;
+    border-top: 0;
+  }
+  .ds-hero .h-display { max-width: 760px; }
+  .ds-hero .lede { color: var(--text-2); font-size: var(--t-lg); max-width: 640px; margin-top: 18px; line-height: 1.55; }
+
+  /* Lesson primitive — mock multiple choice */
+  .mc-option {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--line-2);
+    background: var(--bg-2);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    transition: all var(--d-fast);
+  }
+  .mc-option:hover { border-color: var(--line-3); }
+  .mc-option.correct { border-color: var(--success-500); background: color-mix(in oklch, var(--success-400) 12%, transparent); }
+  .mc-option.wrong { border-color: var(--danger-500); background: color-mix(in oklch, var(--danger-400) 10%, transparent); }
+  .mc-key {
+    width: 28px; height: 28px; border-radius: var(--r-sm);
+    background: var(--bg-3); border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    font-family: var(--font-mono); font-size: var(--t-sm); font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: middle; }
+</style>
+</head>
+<body data-screen-label="00 Design System">
+<div class="ds-shell">
+  <aside class="ds-side">
+    <div class="logo logo-sm" style="margin-bottom: 18px; padding-left: 4px;">
+      <span class="logo-mark"></span>
+      <span>BootCamp <span class="muted" style="font-weight: 500;">/ DS</span></span>
+    </div>
+
+    <a class="ds-nav-link active" href="#foundations">Foundations</a>
+    <div class="ds-side-section">Tokens</div>
+    <a class="ds-nav-link" href="#color">Color</a>
+    <a class="ds-nav-link" href="#typography">Typography</a>
+    <a class="ds-nav-link" href="#spacing">Spacing &amp; radius</a>
+    <a class="ds-nav-link" href="#elevation">Elevation</a>
+    <a class="ds-nav-link" href="#motion">Motion</a>
+
+    <div class="ds-side-section">Components</div>
+    <a class="ds-nav-link" href="#buttons">Buttons</a>
+    <a class="ds-nav-link" href="#inputs">Inputs &amp; search</a>
+    <a class="ds-nav-link" href="#badges">Badges &amp; chips</a>
+    <a class="ds-nav-link" href="#cards">Cards</a>
+    <a class="ds-nav-link" href="#progress">Progress &amp; rings</a>
+    <a class="ds-nav-link" href="#avatars">Avatars</a>
+    <a class="ds-nav-link" href="#code">Code blocks</a>
+
+    <div class="ds-side-section">Lesson primitives</div>
+    <a class="ds-nav-link" href="#nodes">Skill nodes</a>
+    <a class="ds-nav-link" href="#mc">Multiple choice</a>
+    <a class="ds-nav-link" href="#dnd">Drag &amp; drop blocks</a>
+    <a class="ds-nav-link" href="#editor">Code editor</a>
+
+    <div class="ds-side-section">Brand</div>
+    <a class="ds-nav-link" href="#voice">Voice &amp; tone</a>
+    <a class="ds-nav-link" href="#app">App preview</a>
+
+    <div style="margin-top: 28px; padding: 12px; border: 1px solid var(--line-1); border-radius: var(--r-md);">
+      <div class="eyebrow" style="margin-bottom: 6px;">v0.1 · 2026</div>
+      <a class="ds-nav-link" href="App.html" style="padding: 4px 0; color: var(--peacock-300);">→ Open the app</a>
+    </div>
+  </aside>
+
+  <main class="ds-main">
+
+    <!-- HERO -->
+    <section class="ds-section ds-hero" id="foundations">
+      <div class="eyebrow" style="margin-bottom: 18px;">BootCamp · Design System v0.1</div>
+      <h1 class="h-display">A design system for <span class="peacock-text">deep technical learning.</span></h1>
+      <p class="lede">Dark-mode first. Editorial typography paired with IDE precision. The peacock palette gives every screen a sense of depth — iridescent teal-to-magenta accents on calm graphite surfaces, so code, lessons, and progress all sit in the same visual world.</p>
+      <div class="row" style="margin-top: 32px;">
+        <a href="App.html" class="btn btn-iridescent btn-lg">Open the app</a>
+        <a href="#color" class="btn btn-ghost btn-lg">Browse tokens</a>
+      </div>
+
+      <!-- Brand mark / voice card -->
+      <div class="grid-3" style="margin-top: 56px; gap: 20px;">
+        <div class="card card-elevated">
+          <div class="eyebrow" style="margin-bottom: 14px;">Principle 01</div>
+          <div class="h3" style="margin-bottom: 8px;">Calm depth</div>
+          <p class="subtle" style="margin: 0;">Surfaces are quiet. Color earns its place — used to signal track, progress, and mastery, never decoration.</p>
+        </div>
+        <div class="card card-elevated">
+          <div class="eyebrow" style="margin-bottom: 14px;">Principle 02</div>
+          <div class="h3" style="margin-bottom: 8px;">Code-native</div>
+          <p class="subtle" style="margin: 0;">The platform is for developers. Mono fonts, monospaced numerics, and IDE-style frames belong in the everyday UI — not just lessons.</p>
+        </div>
+        <div class="card card-elevated">
+          <div class="eyebrow" style="margin-bottom: 14px;">Principle 03</div>
+          <div class="h3" style="margin-bottom: 8px;">One step at a time</div>
+          <p class="subtle" style="margin: 0;">Lessons are short. Feedback is immediate. The system rewards small wins with subtle motion and tactile micro-interactions.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- COLOR -->
+    <section class="ds-section" id="color">
+      <h2 class="h1">Color</h2>
+      <p class="muted">Peacock-inspired palette. Cool teals and royals carry the brand; iris (magenta) marks Swift, amber marks Kotlin. All colors are defined as CSS custom properties.</p>
+
+      <h3 class="h4" style="margin-top: 36px; margin-bottom: 14px;">Surfaces</h3>
+      <div class="grid-6">
+        <div class="swatch"><div class="swatch-c" style="background: var(--bg-0);"></div><div class="swatch-meta"><div class="swatch-name">bg-0</div><div class="swatch-val">#07090d</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--bg-1);"></div><div class="swatch-meta"><div class="swatch-name">bg-1</div><div class="swatch-val">#0c1118</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--bg-2);"></div><div class="swatch-meta"><div class="swatch-name">bg-2</div><div class="swatch-val">#121823</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--bg-3);"></div><div class="swatch-meta"><div class="swatch-name">bg-3</div><div class="swatch-val">#1a2230</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--bg-4);"></div><div class="swatch-meta"><div class="swatch-name">bg-4</div><div class="swatch-val">#232d3e</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--grad-peacock);"></div><div class="swatch-meta"><div class="swatch-name">peacock·grad</div><div class="swatch-val">iridescent</div></div></div>
+      </div>
+
+      <h3 class="h4" style="margin-top: 36px; margin-bottom: 14px;">Peacock — primary spectrum</h3>
+      <div class="grid-6">
+        <div class="swatch"><div class="swatch-c" style="background: var(--peacock-100);"></div><div class="swatch-meta"><div class="swatch-name">peacock-100</div><div class="swatch-val">#a8f0fb</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--peacock-200);"></div><div class="swatch-meta"><div class="swatch-name">peacock-200</div><div class="swatch-val">#6fdcef</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--peacock-300);"></div><div class="swatch-meta"><div class="swatch-name">peacock-300</div><div class="swatch-val">#2cc4dc</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--peacock-400);"></div><div class="swatch-meta"><div class="swatch-name">peacock-400 ·</div><div class="swatch-val">#0aa6c4 / brand</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--peacock-600);"></div><div class="swatch-meta"><div class="swatch-name">peacock-600</div><div class="swatch-val">#0a6584</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--peacock-800);"></div><div class="swatch-meta"><div class="swatch-name">peacock-800</div><div class="swatch-val">#0d3a4f</div></div></div>
+      </div>
+
+      <h3 class="h4" style="margin-top: 36px; margin-bottom: 14px;">Track accents</h3>
+      <div class="grid-3">
+        <div class="card" style="padding: 20px;">
+          <div class="row-between" style="margin-bottom: 14px;">
+            <div class="row" style="gap: 10px;"><span class="badge badge-iris"><span class="badge-dot"></span>Swift</span></div>
+            <span class="mono muted" style="font-size: var(--t-xs);">iris-400</span>
+          </div>
+          <div style="height: 60px; border-radius: var(--r-md); background: var(--iris-400);"></div>
+        </div>
+        <div class="card" style="padding: 20px;">
+          <div class="row-between" style="margin-bottom: 14px;">
+            <div class="row" style="gap: 10px;"><span class="badge badge-amber"><span class="badge-dot"></span>Kotlin</span></div>
+            <span class="mono muted" style="font-size: var(--t-xs);">amber-400</span>
+          </div>
+          <div style="height: 60px; border-radius: var(--r-md); background: var(--amber-400);"></div>
+        </div>
+        <div class="card" style="padding: 20px;">
+          <div class="row-between" style="margin-bottom: 14px;">
+            <div class="row" style="gap: 10px;"><span class="badge badge-brand"><span class="badge-dot"></span>Shared</span></div>
+            <span class="mono muted" style="font-size: var(--t-xs);">peacock-400</span>
+          </div>
+          <div style="height: 60px; border-radius: var(--r-md); background: var(--peacock-400);"></div>
+        </div>
+      </div>
+
+      <h3 class="h4" style="margin-top: 36px; margin-bottom: 14px;">Semantic</h3>
+      <div class="grid-4">
+        <div class="swatch"><div class="swatch-c" style="background: var(--success-500);"></div><div class="swatch-meta"><div class="swatch-name">success</div><div class="swatch-val">passes / correct</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--warning-400);"></div><div class="swatch-meta"><div class="swatch-name">warning</div><div class="swatch-val">streak at risk</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--danger-500);"></div><div class="swatch-meta"><div class="swatch-name">danger</div><div class="swatch-val">errors / fails</div></div></div>
+        <div class="swatch"><div class="swatch-c" style="background: var(--info-400);"></div><div class="swatch-meta"><div class="swatch-name">info</div><div class="swatch-val">hints</div></div></div>
+      </div>
+    </section>
+
+    <!-- TYPOGRAPHY -->
+    <section class="ds-section" id="typography">
+      <h2 class="h1">Typography</h2>
+      <p class="muted">Inter Tight for UI &amp; display. JetBrains Mono everywhere code, metrics, or labels live. Tabular numerals are turned on for KPIs.</p>
+
+      <div class="type-row">
+        <div class="type-meta">Display · 48 / 700</div>
+        <div class="type-spec h-display">Build mobile fluency.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">H1 · 30 / 700</div>
+        <div class="type-spec h1">Today, you'll write your first SwiftUI view.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">H2 · 24 / 600</div>
+        <div class="type-spec h2">Coroutines &amp; structured concurrency</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">H3 · 20 / 600</div>
+        <div class="type-spec h3">Pattern matching with sealed classes</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">Body · 15 / 400</div>
+        <div class="type-spec">A view in SwiftUI is any type that conforms to the <code class="mono" style="color: var(--code-keyword);">View</code> protocol. The protocol has one requirement: a computed property called <code class="mono" style="color: var(--code-keyword);">body</code>.</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">Mono · 13 / 500</div>
+        <div class="type-spec mono" style="color: var(--peacock-200);">struct ContentView: View { … }</div>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">Eyebrow · 10 / 700</div>
+        <div class="type-spec eyebrow">Lesson 04 · 6 min</div>
+      </div>
+    </section>
+
+    <!-- SPACING / RADIUS -->
+    <section class="ds-section" id="spacing">
+      <h2 class="h1">Spacing &amp; radius</h2>
+      <p class="muted">A 4-pt base scale. Density tweak compresses to 0.82× for power users.</p>
+
+      <div class="grid-2" style="margin-top: 24px;">
+        <div>
+          <div class="eyebrow" style="margin-bottom: 14px;">Spacing scale</div>
+          <div class="sp-row"><span style="width: 60px;">s-1 · 4</span><span class="sp-bar" style="width: 4px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-2 · 8</span><span class="sp-bar" style="width: 8px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-3 · 12</span><span class="sp-bar" style="width: 12px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-4 · 16</span><span class="sp-bar" style="width: 16px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-5 · 20</span><span class="sp-bar" style="width: 20px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-6 · 24</span><span class="sp-bar" style="width: 24px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-8 · 32</span><span class="sp-bar" style="width: 32px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-10 · 40</span><span class="sp-bar" style="width: 40px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-12 · 48</span><span class="sp-bar" style="width: 48px;"></span></div>
+          <div class="sp-row"><span style="width: 60px;">s-16 · 64</span><span class="sp-bar" style="width: 64px;"></span></div>
+        </div>
+        <div>
+          <div class="eyebrow" style="margin-bottom: 14px;">Radius</div>
+          <div class="grid-3" style="gap: 10px;">
+            <div class="r-card" style="border-radius: var(--r-xs);">xs · 4</div>
+            <div class="r-card" style="border-radius: var(--r-sm);">sm · 6</div>
+            <div class="r-card" style="border-radius: var(--r-md);">md · 10</div>
+            <div class="r-card" style="border-radius: var(--r-lg);">lg · 14</div>
+            <div class="r-card" style="border-radius: var(--r-xl);">xl · 20</div>
+            <div class="r-card" style="border-radius: var(--r-2xl);">2xl · 28</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ELEVATION -->
+    <section class="ds-section" id="elevation">
+      <h2 class="h1">Elevation</h2>
+      <p class="muted">Soft, low-contrast shadows. Glow shadows are reserved for primary CTA and active selections.</p>
+
+      <div class="grid-3" style="margin-top: 20px;">
+        <div class="preview" style="background: var(--bg-1); box-shadow: var(--sh-1);"><div class="label">sh-1 · base</div><div class="h4">Resting card</div><p class="muted" style="margin: 6px 0 0;">Subtle border + 1px highlight.</p></div>
+        <div class="preview" style="background: var(--bg-2); box-shadow: var(--sh-2);"><div class="label">sh-2 · raised</div><div class="h4">Hover state</div><p class="muted" style="margin: 6px 0 0;">Used for interactive cards.</p></div>
+        <div class="preview" style="background: var(--bg-2); box-shadow: var(--sh-glow-brand); border: 1px solid color-mix(in oklch, var(--peacock-400) 30%, transparent);"><div class="label">glow · brand</div><div class="h4">Selected / primary</div><p class="muted" style="margin: 6px 0 0;">Emits a soft peacock halo.</p></div>
+      </div>
+    </section>
+
+    <!-- MOTION -->
+    <section class="ds-section" id="motion">
+      <h2 class="h1">Motion</h2>
+      <p class="muted">Three easings, three durations. Springs are reserved for celebratory moments.</p>
+      <div class="grid-3" style="margin-top: 20px;">
+        <div class="card"><div class="eyebrow">Fast · 120ms</div><div class="h4" style="margin-top: 6px;">ease-out</div><p class="muted" style="margin: 6px 0 0;">Hovers, taps, color shifts.</p></div>
+        <div class="card"><div class="eyebrow">Med · 220ms</div><div class="h4" style="margin-top: 6px;">ease-out</div><p class="muted" style="margin: 6px 0 0;">Panel open, drawer slide.</p></div>
+        <div class="card"><div class="eyebrow">Slow · 380ms</div><div class="h4" style="margin-top: 6px;">spring</div><p class="muted" style="margin: 6px 0 0;">Lesson complete, badge unlock.</p></div>
+      </div>
+    </section>
+
+    <!-- BUTTONS -->
+    <section class="ds-section" id="buttons">
+      <h2 class="h1">Buttons</h2>
+      <p class="muted">Iridescent primary is reserved for the highest-stakes action on a screen — usually <em>Start lesson</em> or <em>Submit</em>.</p>
+      <div class="preview" style="margin-top: 20px;">
+        <div class="label">Variants</div>
+        <div class="row" style="flex-wrap: wrap; gap: 12px;">
+          <button class="btn btn-iridescent">Start lesson</button>
+          <button class="btn btn-primary">Submit answer</button>
+          <button class="btn btn-outline">Skip</button>
+          <button class="btn btn-ghost">Cancel</button>
+          <button class="btn btn-icon" aria-label="Settings">⚙</button>
+        </div>
+        <div class="divider"></div>
+        <div class="label">Sizes</div>
+        <div class="row" style="flex-wrap: wrap; gap: 12px;">
+          <button class="btn btn-primary btn-sm">Small</button>
+          <button class="btn btn-primary">Default</button>
+          <button class="btn btn-primary btn-lg">Large</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- INPUTS -->
+    <section class="ds-section" id="inputs">
+      <h2 class="h1">Inputs &amp; search</h2>
+      <div class="preview" style="margin-top: 20px;">
+        <div class="grid-2">
+          <div>
+            <div class="label">Text input</div>
+            <input class="input" placeholder="Search lessons…" />
+          </div>
+          <div>
+            <div class="label">Search</div>
+            <div class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input class="input input-search" placeholder="Search lessons, badges, paths…" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BADGES / CHIPS -->
+    <section class="ds-section" id="badges">
+      <h2 class="h1">Badges &amp; chips</h2>
+      <div class="preview" style="margin-top: 20px;">
+        <div class="label">Badges (status, immutable)</div>
+        <div class="row" style="flex-wrap: wrap; gap: 8px;">
+          <span class="badge badge-brand"><span class="badge-dot"></span>New</span>
+          <span class="badge badge-iris"><span class="badge-dot"></span>Swift</span>
+          <span class="badge badge-amber"><span class="badge-dot"></span>Kotlin</span>
+          <span class="badge badge-success"><span class="badge-dot"></span>Mastered</span>
+          <span class="badge"><span class="badge-dot" style="color: var(--text-3);"></span>Locked</span>
+          <span class="badge badge-mono">v0.1.4</span>
+        </div>
+        <div class="divider"></div>
+        <div class="label">Chips (filterable)</div>
+        <div class="row" style="flex-wrap: wrap; gap: 8px;">
+          <span class="chip active">All paths</span>
+          <span class="chip">Beginner</span>
+          <span class="chip">Intermediate</span>
+          <span class="chip">UI &amp; layout</span>
+          <span class="chip">Concurrency</span>
+          <span class="chip">Networking</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARDS -->
+    <section class="ds-section" id="cards">
+      <h2 class="h1">Cards</h2>
+      <div class="grid-3" style="margin-top: 20px;">
+        <div class="card"><div class="eyebrow">card · base</div><div class="h4" style="margin-top: 8px;">Resting card</div><p class="muted" style="margin-top: 8px;">Used for content lists, lesson rows, profile sections.</p></div>
+        <div class="card card-elevated"><div class="eyebrow">card · elevated</div><div class="h4" style="margin-top: 8px;">Raised card</div><p class="muted" style="margin-top: 8px;">For dashboard tiles and emphasized content.</p></div>
+        <div class="card card-glow"><div class="eyebrow">card · glow border</div><div class="h4" style="margin-top: 8px;">Featured card</div><p class="muted" style="margin-top: 8px;">Iridescent border for milestones and unlocks.</p></div>
+      </div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="ds-section" id="progress">
+      <h2 class="h1">Progress &amp; rings</h2>
+      <div class="preview" style="margin-top: 20px;">
+        <div class="grid-2" style="align-items: center;">
+          <div class="col">
+            <div>
+              <div class="row-between" style="margin-bottom: 6px;"><span class="eyebrow">Swift · UIKit fundamentals</span><span class="mono muted" style="font-size: var(--t-xs);">42 / 60</span></div>
+              <div class="bar"><div class="bar-fill" style="width: 70%;"></div></div>
+            </div>
+            <div>
+              <div class="row-between" style="margin-bottom: 6px;"><span class="eyebrow">Kotlin · Coroutines</span><span class="mono muted" style="font-size: var(--t-xs);">8 / 24</span></div>
+              <div class="bar"><div class="bar-fill" style="width: 33%; background: var(--amber-400);"></div></div>
+            </div>
+            <div>
+              <div class="row-between" style="margin-bottom: 6px;"><span class="eyebrow">Daily goal</span><span class="mono muted" style="font-size: var(--t-xs);">18 / 20 XP</span></div>
+              <div class="bar bar-thin"><div class="bar-fill" style="width: 90%;"></div></div>
+            </div>
+          </div>
+          <div class="row" style="gap: 24px; justify-content: flex-end;">
+            <div class="ring" style="--p: 70; --size: 88px;"><div class="col" style="align-items: center; gap: 0;"><div class="mono" style="font-weight: 700;">70%</div><div class="muted" style="font-size: var(--t-2xs);">UIKit</div></div></div>
+            <div class="ring" style="--p: 33; --size: 88px;"><div class="col" style="align-items: center; gap: 0;"><div class="mono" style="font-weight: 700;">33%</div><div class="muted" style="font-size: var(--t-2xs);">Coroutines</div></div></div>
+            <div class="ring" style="--p: 90; --size: 88px;"><div class="col" style="align-items: center; gap: 0;"><div class="mono" style="font-weight: 700;">90%</div><div class="muted" style="font-size: var(--t-2xs);">Goal</div></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AVATARS -->
+    <section class="ds-section" id="avatars">
+      <h2 class="h1">Avatars</h2>
+      <div class="preview" style="margin-top: 20px;">
+        <div class="row" style="gap: 16px; align-items: center;">
+          <div class="avatar avatar-sm">JK</div>
+          <div class="avatar">AM</div>
+          <div class="avatar avatar-lg">RP</div>
+          <div class="row" style="gap: -8px; margin-left: 16px;">
+            <div class="avatar" style="margin-right: -10px;">JK</div>
+            <div class="avatar" style="margin-right: -10px; background: var(--iris-400);">AM</div>
+            <div class="avatar" style="margin-right: -10px; background: var(--amber-400);">RP</div>
+            <div class="avatar" style="background: var(--royal-400);">+12</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CODE -->
+    <section class="ds-section" id="code">
+      <h2 class="h1">Code blocks</h2>
+      <p class="muted">A consistent token palette for both Swift and Kotlin. Same colors, same line-height, same line numbers.</p>
+
+      <div class="grid-2" style="margin-top: 20px; align-items: start;">
+        <div class="code-frame">
+          <div class="code-frame-head">
+            <div class="code-frame-tabs">
+              <span class="code-tab active">ContentView.swift</span>
+              <span class="code-tab">App.swift</span>
+            </div>
+            <span class="badge badge-iris">swift</span>
+          </div>
+          <div class="code-frame-body">
+            <pre class="mono" style="margin: 0; font-size: var(--t-sm); line-height: 1.7;"><span class="ln">1</span><span class="tok-k">import</span> <span class="tok-t">SwiftUI</span>
+<span class="ln">2</span>
+<span class="ln">3</span><span class="tok-k">struct</span> <span class="tok-t">ContentView</span>: <span class="tok-t">View</span> {
+<span class="ln">4</span>  <span class="tok-k">var</span> body: <span class="tok-k">some</span> <span class="tok-t">View</span> {
+<span class="ln">5</span>    <span class="tok-t">VStack</span>(spacing: <span class="tok-n">12</span>) {
+<span class="ln">6</span>      <span class="tok-t">Text</span>(<span class="tok-s">"Hello, BootCamp"</span>)
+<span class="ln">7</span>        .<span class="tok-f">font</span>(.title)
+<span class="ln">8</span>      <span class="tok-t">Button</span>(<span class="tok-s">"Start"</span>) { }
+<span class="ln">9</span>    }
+<span class="ln">10</span>  }
+<span class="ln">11</span>}</pre>
+          </div>
+        </div>
+
+        <div class="code-frame">
+          <div class="code-frame-head">
+            <div class="code-frame-tabs">
+              <span class="code-tab active">MainScreen.kt</span>
+              <span class="code-tab">App.kt</span>
+            </div>
+            <span class="badge badge-amber">kotlin</span>
+          </div>
+          <div class="code-frame-body">
+            <pre class="mono" style="margin: 0; font-size: var(--t-sm); line-height: 1.7;"><span class="ln">1</span><span class="tok-k">import</span> <span class="tok-p">androidx.compose.material3.*</span>
+<span class="ln">2</span>
+<span class="ln">3</span><span class="tok-a">@Composable</span>
+<span class="ln">4</span><span class="tok-k">fun</span> <span class="tok-f">MainScreen</span>() {
+<span class="ln">5</span>  <span class="tok-f">Column</span>(
+<span class="ln">6</span>    verticalArrangement = <span class="tok-t">Arrangement</span>.<span class="tok-f">spacedBy</span>(<span class="tok-n">12</span>.dp)
+<span class="ln">7</span>  ) {
+<span class="ln">8</span>    <span class="tok-f">Text</span>(<span class="tok-s">"Hello, BootCamp"</span>)
+<span class="ln">9</span>    <span class="tok-f">Button</span>(<span class="tok-k">onClick</span> = { }) {
+<span class="ln">10</span>      <span class="tok-f">Text</span>(<span class="tok-s">"Start"</span>)
+<span class="ln">11</span>    }
+<span class="ln">12</span>  }
+<span class="ln">13</span>}</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LESSON PRIMITIVES -->
+    <section class="ds-section" id="nodes">
+      <h2 class="h1">Skill nodes</h2>
+      <p class="muted">The atom of the skill tree. Five states: locked, available, current, in-progress, completed. Track tint comes from the surrounding context.</p>
+      <div class="preview" style="margin-top: 20px;">
+        <div class="row" style="gap: 28px; flex-wrap: wrap;">
+          <div class="col" style="align-items: center; gap: 8px;"><div class="node tint-shared completed"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="5 12 10 17 19 7"/></svg></div><span class="muted mono" style="font-size: var(--t-2xs);">completed</span></div>
+          <div class="col" style="align-items: center; gap: 8px;"><div class="node tint-swift current">★</div><span class="muted mono" style="font-size: var(--t-2xs);">current</span></div>
+          <div class="col" style="align-items: center; gap: 8px;"><div class="node tint-kotlin"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><span class="muted mono" style="font-size: var(--t-2xs);">available</span></div>
+          <div class="col" style="align-items: center; gap: 8px;"><div class="node tint-shared locked"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><span class="muted mono" style="font-size: var(--t-2xs);">locked</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MULTIPLE CHOICE -->
+    <section class="ds-section" id="mc">
+      <h2 class="h1">Multiple choice</h2>
+      <p class="muted">Bite-sized concept check. Keyboard shortcuts shown in mono key.</p>
+      <div class="preview" style="margin-top: 20px;">
+        <div class="eyebrow" style="margin-bottom: 12px;">Question · Swift property wrappers</div>
+        <p class="h3" style="margin-bottom: 18px;">What does <code class="mono" style="color: var(--code-keyword);">@State</code> primarily provide?</p>
+        <div class="col" style="gap: 10px;">
+          <div class="mc-option"><span class="mc-key">A</span><span>A way to share state across multiple views</span></div>
+          <div class="mc-option correct"><span class="mc-key" style="color: var(--success-400); border-color: var(--success-500);">B</span><span>Local, mutable storage owned by a single view</span><span style="margin-left: auto; color: var(--success-400); font-size: var(--t-sm);">Correct</span></div>
+          <div class="mc-option"><span class="mc-key">C</span><span>Persistent storage written to disk</span></div>
+          <div class="mc-option wrong"><span class="mc-key" style="color: var(--danger-400); border-color: var(--danger-500);">D</span><span>A way to bind to a Combine publisher</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DRAG DROP -->
+    <section class="ds-section" id="dnd">
+      <h2 class="h1">Drag &amp; drop blocks</h2>
+      <p class="muted">For syntax-shaped exercises. Filled tokens show resolved drops.</p>
+      <div class="preview" style="margin-top: 20px;">
+        <div class="eyebrow" style="margin-bottom: 16px;">Build a Kotlin coroutine launch</div>
+        <pre class="mono" style="background: var(--code-bg); padding: 18px; border-radius: var(--r-md); font-size: var(--t-md); line-height: 2; margin: 0; border: 1px solid var(--line-1);"><span class="tok-k">fun</span> <span class="tok-f">load</span>() = <span style="display: inline-block; padding: 4px 10px; border-radius: 6px; background: var(--peacock-400); color: #02121a; font-weight: 700;">CoroutineScope</span>(<span style="display: inline-block; padding: 4px 10px; border-radius: 6px; background: var(--peacock-400); color: #02121a; font-weight: 700;">Dispatchers.IO</span>).<span style="display: inline-block; padding: 4px 10px; border: 1px dashed var(--line-3); border-radius: 6px; color: var(--text-3); min-width: 80px; text-align: center;">drop here</span> {
+  <span class="tok-k">val</span> data = api.<span class="tok-f">fetch</span>()
+}</pre>
+        <div class="row" style="gap: 8px; margin-top: 16px; flex-wrap: wrap;">
+          <span class="chip">launch</span>
+          <span class="chip">async</span>
+          <span class="chip">runBlocking</span>
+          <span class="chip">withContext</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDITOR PREVIEW -->
+    <section class="ds-section" id="editor">
+      <h2 class="h1">Live code editor</h2>
+      <p class="muted">A two-pane IDE feel: editor + run output. The output frame uses a slightly warmer tone to read at a glance.</p>
+      <div class="preview" style="margin-top: 20px; padding: 0; overflow: hidden;">
+        <div style="display: grid; grid-template-columns: 1.4fr 1fr; min-height: 320px;">
+          <div class="code-frame" style="border: 0; border-right: 1px solid var(--line-1); border-radius: 0;">
+            <div class="code-frame-head">
+              <div class="code-frame-tabs"><span class="code-tab active">main.swift</span></div>
+              <div class="row" style="gap: 6px;">
+                <button class="btn btn-sm btn-ghost">Reset</button>
+                <button class="btn btn-sm btn-primary">▶ Run</button>
+              </div>
+            </div>
+            <div class="code-frame-body">
+              <pre class="mono" style="margin: 0; font-size: var(--t-sm); line-height: 1.75;"><span class="ln">1</span><span class="tok-k">func</span> <span class="tok-f">greet</span>(_ name: <span class="tok-t">String</span>) -&gt; <span class="tok-t">String</span> {
+<span class="ln">2</span>  <span class="tok-k">return</span> <span class="tok-s">"Hello, \(name)!"</span>
+<span class="ln">3</span>}
+<span class="ln">4</span>
+<span class="ln">5</span><span class="tok-f">print</span>(<span class="tok-f">greet</span>(<span class="tok-s">"BootCamp"</span>))</pre>
+            </div>
+          </div>
+          <div style="background: var(--bg-2); display: flex; flex-direction: column;">
+            <div style="padding: 8px 14px; border-bottom: 1px solid var(--line-1); display: flex; align-items: center; justify-content: space-between;">
+              <span class="eyebrow">Output</span>
+              <span class="badge badge-success"><span class="badge-dot"></span>passed</span>
+            </div>
+            <div style="padding: 16px 18px; flex: 1;">
+              <pre class="mono" style="margin: 0; font-size: var(--t-sm); color: var(--peacock-200);">Hello, BootCamp!</pre>
+              <div style="margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line-2);">
+                <div class="eyebrow" style="margin-bottom: 8px;">Tests</div>
+                <div class="row" style="gap: 8px; margin-bottom: 6px; font-size: var(--t-sm);"><span style="color: var(--success-400);">✓</span><span class="mono muted">greet returns "Hello, BootCamp!"</span></div>
+                <div class="row" style="gap: 8px; font-size: var(--t-sm);"><span style="color: var(--success-400);">✓</span><span class="mono muted">handles empty string</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VOICE -->
+    <section class="ds-section" id="voice">
+      <h2 class="h1">Voice &amp; tone</h2>
+      <div class="grid-2" style="margin-top: 20px;">
+        <div class="card">
+          <div class="eyebrow" style="margin-bottom: 14px; color: var(--success-400);">Do</div>
+          <ul class="col" style="margin: 0; padding-left: 18px; gap: 8px; color: var(--text-2);">
+            <li>Speak directly. "You'll write a function that…"</li>
+            <li>Name the concept once, use it consistently after.</li>
+            <li>Celebrate small wins with restraint. "Nice — that compiles."</li>
+            <li>Use code in prose: <code class="mono" style="color: var(--peacock-200);">let</code>, not "the keyword <em>let</em>".</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="eyebrow" style="margin-bottom: 14px; color: var(--danger-400);">Don't</div>
+          <ul class="col" style="margin: 0; padding-left: 18px; gap: 8px; color: var(--text-2);">
+            <li>Be overly congratulatory. "Amazing job, superstar!" is a no.</li>
+            <li>Hide errors. Show what failed and why.</li>
+            <li>Use emoji as punctuation. The brand has its own visual vocabulary.</li>
+            <li>Mix metaphors — "Level up your coding journey" is two clichés.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- APP -->
+    <section class="ds-section" id="app">
+      <h2 class="h1">See it in motion</h2>
+      <p class="muted">The full prototype puts everything above into a working app — dashboard, skill tree, lesson player (5 lesson types), profile.</p>
+      <a href="App.html" class="btn btn-iridescent btn-lg" style="margin-top: 20px;">Open the BootCamp app →</a>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  // Active nav link as you scroll
+  const links = document.querySelectorAll('.ds-nav-link');
+  const sections = [...links].map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const id = '#' + e.target.id;
+        links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === id));
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px' });
+  sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

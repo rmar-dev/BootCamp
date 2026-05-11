@@ -1,0 +1,179 @@
+name: Nightly health check
+
+# Runs the full test matrix every night plus a few things the PR workflow
+# skips for speed (full curriculum publish dry-run, npm audit summary). On
+# failure it opens or updates a tracked GitHub Issue so the alert is visible
+# in the repo instead of hidden in an email/Slack notification you missed.
+
+on:
+  schedule:
+    # 03:00 UTC every day — late-night UTC = pre-dawn Europe, late-night Americas.
+    - cron: '0 3 * * *'
+  # Also runnable on demand from the Actions tab.
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  web:
+    name: Web (full)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE: http://localhost:3002
+      - name: npm audit (informational)
+        # Don't fail the build on audit warnings — they're noisy. Surface them
+        # so a human can scan the nightly summary.
+        run: npm audit --omit=dev || true
+
+  platform:
+    name: Platform (full)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bootcamp
+          POSTGRES_PASSWORD: bootcamp
+          POSTGRES_DB: bootcamp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bootcamp"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://bootcamp:bootcamp@localhost:5432/bootcamp?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+        continue-on-error: true
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npm audit --omit=dev || true
+
+  curriculum:
+    name: Curriculum (full + publish dry-run)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: curriculum
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bootcamp
+          POSTGRES_PASSWORD: bootcamp
+          POSTGRES_DB: bootcamp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bootcamp"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://bootcamp:bootcamp@localhost:5432/bootcamp?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: curriculum/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npx tsc --noEmit
+      - run: npm test
+      - name: Compile + publish (against ephemeral Postgres)
+        # End-to-end smoke: prove the whole compiler can actually write to a DB
+        # without errors. The Postgres service container is ephemeral, so this
+        # touches no real environment.
+        run: npm run compile:publish
+
+  # Single fan-in job: if any matrix leg failed, file/refresh a tracked Issue.
+  alert-on-failure:
+    name: Open/update tracking issue on failure
+    if: always() && (needs.web.result == 'failure' || needs.platform.result == 'failure' || needs.curriculum.result == 'failure')
+    needs: [web, platform, curriculum]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: File/refresh nightly-failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Nightly health check failing — ${new Date().toISOString().slice(0, 10)}`;
+            const failed = {
+              web: '${{ needs.web.result }}',
+              platform: '${{ needs.platform.result }}',
+              curriculum: '${{ needs.curriculum.result }}',
+            };
+            const failedNames = Object.entries(failed)
+              .filter(([_, r]) => r === 'failure')
+              .map(([name]) => name);
+
+            const body = [
+              `Nightly health check failed on ${context.sha.slice(0, 7)} (${context.ref}).`,
+              ``,
+              `**Failing jobs:** ${failedNames.join(', ')}`,
+              ``,
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+
+            // Look for an existing open nightly-failure issue to update.
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'nightly-failure',
+              state: 'open',
+            });
+
+            if (existing.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing[0].number,
+                body,
+              });
+              core.info(`Commented on existing issue #${existing[0].number}.`);
+            } else {
+              const { data: issue } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['nightly-failure', 'ci'],
+              });
+              core.info(`Opened new issue #${issue.number}.`);
+            }

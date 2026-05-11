@@ -1,0 +1,61 @@
+# --- Node / npm ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# --- Next.js (web) ---
+web/.next/
+web/out/
+web/.vercel/
+web/playwright-report/
+web/test-results/
+web/tsconfig.tsbuildinfo
+
+# --- NestJS / dist ---
+platform/dist/
+platform/.nest/
+
+# --- Local env files (never check in secrets) ---
+.env
+.env.local
+.env*.local
+!.env.example
+
+# --- Prisma generated artefacts ---
+**/.prisma/
+**/prisma/generated/
+
+# --- Postgres data dirs from docker-compose ---
+platform/postgres-data/
+
+# --- Test artefacts ---
+coverage/
+.vitest-cache/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# --- Build caches ---
+.turbo/
+.cache/
+
+# --- Claude Code personal state (do not check in) ---
+.claude/
+
+# --- Preserved nested-repo histories (see initial commit notes) ---
+**/.git.disabled/
+# Selectively re-include the project's shared agent / pipeline definitions.
+!.claude-pipeline-version
+!.claude-pipeline-lock
+
+# --- Curriculum local-only smoke artefacts (built fresh per CI run) ---
+platform/docker/swift-lsp/node_modules/
+platform/docker/swift-lsp/package-lock.json

@@ -1,0 +1,11 @@
+{
+  "name": "bootcamp-swift-lsp-bridge",
+  "version": "1.0.0",
+  "description": "WebSocket -> stdio bridge for sourcekit-lsp.",
+  "private": true,
+  "main": "bridge.js",
+  "type": "commonjs",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

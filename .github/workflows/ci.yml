@@ -1,0 +1,168 @@
+name: CI
+
+# PR-time checks. Runs on every pull request and on push to main. Each
+# subproject (web, platform, curriculum) gets its own job, gated by whether
+# files inside that subproject (or this workflow file) actually changed. A
+# touch in one folder will not spend CI minutes on the others.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  # Cancel an older run of the same workflow on the same ref (e.g. when a PR
+  # gets a force-push) so we don't burn minutes on a superseded commit.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      platform: ${{ steps.filter.outputs.platform }}
+      curriculum: ${{ steps.filter.outputs.curriculum }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # `workflows` is its own slot so changes to CI files re-run every
+          # downstream job (otherwise a CI tweak slips through untested).
+          filters: |
+            web:
+              - 'web/**'
+              - '.github/workflows/ci.yml'
+            platform:
+              - 'platform/**'
+              - '.github/workflows/ci.yml'
+            curriculum:
+              - 'curriculum/**'
+              - '.github/workflows/ci.yml'
+            workflows:
+              - '.github/workflows/**'
+
+  web:
+    name: Web (Next.js)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        # Catches SSR/RSC mistakes that don't show up in unit tests.
+        run: npm run build
+        env:
+          # The build needs an API base; any value is fine for compile-time.
+          NEXT_PUBLIC_API_BASE: http://localhost:3002
+
+  platform:
+    name: Platform (NestJS)
+    needs: changes
+    if: needs.changes.outputs.platform == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    # Postgres available for any test that needs the DB; tests that don't
+    # use it simply ignore the service. Cheaper than skipping it and finding
+    # out at the wrong time.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bootcamp
+          POSTGRES_PASSWORD: bootcamp
+          POSTGRES_DB: bootcamp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bootcamp"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://bootcamp:bootcamp@localhost:5432/bootcamp?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - run: npm ci
+      - name: Prisma generate
+        # `postinstall` runs prisma generate but the CI cache may have skipped it.
+        run: npx prisma generate
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test
+
+  curriculum:
+    name: Curriculum (markdown + compiler)
+    needs: changes
+    if: needs.changes.outputs.curriculum == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: curriculum
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: curriculum/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit + on-disk tests
+        # The vitest suite includes `curriculum-files.test.ts`, which parses
+        # every track.md + lesson.md on disk and validates exercise payloads.
+        # Authoring a broken lesson fails here, before merge.
+        run: npm test
+
+  # Single status check downstream tools (branch protection, required status)
+  # can hook to. Greens only when every subjob that ran was green; skipped jobs
+  # don't fail the gate (path filter intentionally suppresses them).
+  ci-status:
+    name: CI status
+    if: always()
+    needs: [changes, web, platform, curriculum]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate results
+        run: |
+          # An individual job is fine if it succeeded OR was skipped (paths-filter said it wasn't relevant).
+          for result in \
+            "web=${{ needs.web.result }}" \
+            "platform=${{ needs.platform.result }}" \
+            "curriculum=${{ needs.curriculum.result }}"; do
+            name="${result%%=*}"
+            r="${result#*=}"
+            if [[ "$r" != "success" && "$r" != "skipped" ]]; then
+              echo "::error::$name failed (result=$r)"
+              exit 1
+            fi
+          done
+          echo "All required jobs passed or were skipped."
