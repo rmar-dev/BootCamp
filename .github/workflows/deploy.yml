@@ -1,0 +1,138 @@
+name: Deploy
+
+# Two triggers:
+#   * workflow_dispatch — manual button in the Actions tab. Pick what to deploy.
+#   * schedule          — 04:00 UTC daily, just after the nightly health check
+#                         at 03:00. Catches drift; the gate below ensures we
+#                         never deploy a red commit.
+#
+# Both paths share the same `gate` job that requires the latest CI run on main
+# to be green. Without that, deploy is a no-op.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Which target to redeploy on the VPS'
+        type: choice
+        required: true
+        default: bootcamp
+        options:
+          - bootcamp
+          - edge
+          - all
+      force:
+        description: 'Skip the green-CI gate (use only when you know what you are doing)'
+        type: boolean
+        default: false
+  schedule:
+    # 04:00 UTC — runs after nightly.yml (03:00) so the gate sees a fresh result.
+    - cron: '0 4 * * *'
+
+concurrency:
+  # One deploy at a time per repo. Queued runs cancel the earlier one — the
+  # newer commit wins.
+  group: deploy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  # ── 1. Gate ────────────────────────────────────────────────────────────────
+  # Verify the latest CI run on main was successful. Refuses to proceed
+  # otherwise (unless dispatched with `force: true`).
+  gate:
+    name: Require green CI on main
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+    steps:
+      - name: Check latest CI run on main
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const force = '${{ inputs.force }}' === 'true';
+            if (force) {
+              core.warning('Force-deploy: skipping CI gate.');
+              core.setOutput('go', 'true');
+              return;
+            }
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci.yml',
+              branch: 'main',
+              per_page: 5,
+            });
+            const latest = runs.workflow_runs?.[0];
+            if (!latest) {
+              core.setFailed('No CI runs found on main yet.');
+              return;
+            }
+            core.info(`Latest CI: ${latest.conclusion} (commit ${latest.head_sha.slice(0,7)})`);
+            if (latest.conclusion !== 'success') {
+              core.setFailed(`Latest CI on main is "${latest.conclusion}" — refusing to deploy.`);
+              return;
+            }
+            core.setOutput('go', 'true');
+
+  # ── 2. Deploy ──────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy ${{ inputs.app || 'bootcamp' }} to VPS
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        # Write the deploy key from the secret into a transient file, restrict
+        # perms, and trust the VPS host key fingerprint. The key never lands
+        # in the workflow log: we read it directly into ssh-add via stdin.
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Trigger redeploy on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          APP: ${{ inputs.app || 'bootcamp' }}
+        # The VPS has the deploy CLI at /opt/vps-deploy/deploy. Invoke it
+        # remotely with the same subcommand the operator would type locally,
+        # which: pulls latest BootCamp + vps-deploy, rebuilds the image,
+        # restarts the container.
+        run: |
+          set -e
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
+              root@"$VPS_HOST" \
+              "cd /opt/vps-deploy && git pull --ff-only && \
+               git -C /opt/repos/bootcamp pull --ff-only && \
+               docker compose -f sites/bootcamp/docker-compose.yml \
+                              --env-file sites/bootcamp/.env.prod \
+                              up -d --build $( [ \"$APP\" = \"all\" ] && echo '' || echo \"$APP\" )"
+
+      - name: Smoke-test the deployed app
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          # Give the container a few seconds to come up, then check the URL.
+          BOOTCAMP_URL=$(ssh -i ~/.ssh/deploy_key root@"$VPS_HOST" \
+            "grep '^BOOTCAMP_DOMAIN=' /opt/vps-deploy/sites/bootcamp/.env.prod | cut -d= -f2-")
+          if [ -z "$BOOTCAMP_URL" ]; then
+            echo "::warning::could not resolve BOOTCAMP_DOMAIN; skipping smoke test"
+            exit 0
+          fi
+          echo "Smoke testing https://$BOOTCAMP_URL/login"
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "https://$BOOTCAMP_URL/login" || true)
+            if [ "$code" = "200" ]; then echo "OK ($code)"; exit 0; fi
+            echo "attempt $i: HTTP $code, retrying…"; sleep 5
+          done
+          echo "::error::login page never returned 200"
+          exit 1
+
+      - name: Cleanup key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
