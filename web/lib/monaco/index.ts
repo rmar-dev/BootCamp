@@ -14,8 +14,30 @@ import { registerKotlinLanguageServices } from './kotlin-language';
 type Monaco = typeof monacoNS;
 
 export function installLanguageServices(monaco: Monaco): void {
-  registerSwiftLanguageServices(monaco);
-  registerKotlinLanguageServices(monaco);
+  // Wrap each registration so a throw in one language doesn't silently kill
+  // the other — that previously surfaced as "Swift autocomplete doesn't work
+  // but Kotlin does" depending on which file loaded first.
+  try {
+    registerSwiftLanguageServices(monaco);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[bootcamp] Swift language services failed to register.', err);
+  }
+  try {
+    registerKotlinLanguageServices(monaco);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[bootcamp] Kotlin language services failed to register.', err);
+  }
+
+  if (typeof window !== 'undefined') {
+    const swiftKnown = monaco.languages.getLanguages().some((l) => l.id === 'swift');
+    const kotlinKnown = monaco.languages.getLanguages().some((l) => l.id === 'kotlin');
+    // eslint-disable-next-line no-console
+    console.info(
+      `[bootcamp] Monaco language services installed (swift=${swiftKnown}, kotlin=${kotlinKnown}).`,
+    );
+  }
 
   // Best-effort LSP wiring. Level 3 — when `NEXT_PUBLIC_LSP_URL` is set, attempt
   // to connect to a sourcekit-lsp / kotlin-language-server bridge for real
