@@ -15,7 +15,7 @@ export default function InstructorDashboard() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user || user.role !== 'instructor') {
+    if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
       router.replace('/dashboard');
       return;
     }

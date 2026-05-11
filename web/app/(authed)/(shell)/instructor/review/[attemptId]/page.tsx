@@ -46,7 +46,7 @@ export default function InstructorReviewPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user || user.role !== 'instructor') {
+    if (!user || (user.role !== 'instructor' && user.role !== 'admin')) {
       router.replace('/dashboard');
       return;
     }
