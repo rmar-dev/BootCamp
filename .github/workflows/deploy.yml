@@ -99,19 +99,37 @@ jobs:
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           APP: ${{ inputs.app || 'bootcamp' }}
-        # The VPS has the deploy CLI at /opt/vps-deploy/deploy. Invoke it
-        # remotely with the same subcommand the operator would type locally,
-        # which: pulls latest BootCamp + vps-deploy, rebuilds the image,
-        # restarts the container.
+        # Mirrors what `deploy up <app>` does locally (see vps-deploy/deploy):
+        # each app maps to its own compose + env file, not to a service name
+        # inside one big compose. `bootcamp` is the compose project name, not
+        # a service — passing it as a service arg fails with "no such service".
         run: |
           set -e
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
-              root@"$VPS_HOST" \
-              "cd /opt/vps-deploy && git pull --ff-only && \
-               git -C /opt/repos/bootcamp pull --ff-only && \
-               docker compose -f sites/bootcamp/docker-compose.yml \
-                              --env-file sites/bootcamp/.env.prod \
-                              up -d --build $( [ \"$APP\" = \"all\" ] && echo '' || echo \"$APP\" )"
+              root@"$VPS_HOST" bash -s -- "$APP" <<'REMOTE'
+            set -e
+            APP="$1"
+            cd /opt/vps-deploy && git pull --ff-only
+
+            up_bootcamp() {
+              git -C /opt/repos/bootcamp pull --ff-only
+              docker compose -f sites/bootcamp/docker-compose.yml \
+                             --env-file sites/bootcamp/.env.prod \
+                             up -d --build
+            }
+            up_edge() {
+              docker compose -f edge/docker-compose.yml \
+                             --env-file .env.prod \
+                             up -d --build
+            }
+
+            case "$APP" in
+              bootcamp) up_bootcamp ;;
+              edge)     up_edge ;;
+              all)      up_bootcamp; up_edge ;;
+              *) echo "unknown app: $APP" >&2; exit 2 ;;
+            esac
+          REMOTE
 
       - name: Smoke-test the deployed app
         env:
