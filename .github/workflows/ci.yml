@@ -166,10 +166,13 @@ jobs:
           cache-dependency-path: curriculum/package-lock.json
       - run: npm ci
       - name: Prisma generate + migrate (test DB)
-        # `compileTrack` writes through Prisma; tables must exist.
+        # `compileTrack` writes through Prisma; tables must exist. The
+        # migrations live in `platform/` (single source of truth for the
+        # shared DB schema); curriculum has only the read-side schema. Run
+        # the platform's migrations against the same DB so the tables exist.
         run: |
           npx prisma generate
-          npx prisma migrate deploy
+          npx prisma migrate deploy --schema=../platform/prisma/schema.prisma
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Unit + on-disk + compiler tests

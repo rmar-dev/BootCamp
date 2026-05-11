@@ -41,13 +41,16 @@ const sampleLesson: LessonResponse = {
     { kind: 'exercise', id: 'b-1', exercise: {
       id: 'e-1', version: 1, type: 'multiple_choice',
       promptMarkdown: 'pick one', pointsMax: 100,
-      payload: { type: 'multiple_choice', questionMarkdown: 'q', options: [{ id: 'a', text: 'A' }], correctOptionIds: ['a'], multiSelect: false },
+      // The renderer surfaces `payload.questionMarkdown`, not `promptMarkdown`,
+      // so the question text in fixture data must live there for the test to
+      // assert on what the user actually sees.
+      payload: { type: 'multiple_choice', questionMarkdown: 'pick one', options: [{ id: 'a', text: 'A' }], correctOptionIds: ['a'], multiSelect: false },
       attemptStatus: 'unattempted',
     } },
     { kind: 'exercise', id: 'b-2', exercise: {
       id: 'e-2', version: 1, type: 'multiple_choice',
       promptMarkdown: 'pick one', pointsMax: 100,
-      payload: { type: 'multiple_choice', questionMarkdown: 'q', options: [{ id: 'a', text: 'A' }], correctOptionIds: ['a'], multiSelect: false },
+      payload: { type: 'multiple_choice', questionMarkdown: 'pick one', options: [{ id: 'a', text: 'A' }], correctOptionIds: ['a'], multiSelect: false },
       attemptStatus: 'first_try',
     } },
   ],

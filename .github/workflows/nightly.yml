@@ -117,7 +117,10 @@ jobs:
           cache-dependency-path: curriculum/package-lock.json
       - run: npm ci
       - run: npx prisma generate
-      - run: npx prisma migrate deploy
+      # Platform owns the migration history for the shared schema; the
+      # curriculum schema only models the read-side. Apply platform's
+      # migrations so the tables exist before compileTrack runs.
+      - run: npx prisma migrate deploy --schema=../platform/prisma/schema.prisma
       - run: npx tsc --noEmit
       - run: npm test
       - name: Compile + publish (against ephemeral Postgres)
