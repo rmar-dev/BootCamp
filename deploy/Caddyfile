@@ -1,0 +1,55 @@
+# Caddy reverse proxy — TLS termination + same-origin routing for BootCamp.
+#
+# Browser sees ONE origin (the domain). Caddy splits:
+#   /api/*  -> platform:3002   (NestJS controllers all start with `api/`)
+#   /lsp    -> swift-lsp:4500  (only if you started the `lsp` profile)
+#   /*      -> web:3001        (Next.js)
+#
+# This eliminates CORS entirely — no need to manage allowed origins.
+# TLS is automatic via Let's Encrypt; first request to a fresh domain takes
+# ~10–30s while the cert provisions.
+
+{$DOMAIN} {
+	encode gzip zstd
+
+	# ── Platform API ────────────────────────────────────────────────────────
+	handle /api/* {
+		reverse_proxy platform:3002 {
+			# Pass the real client IP so the platform's rate limiters / logs
+			# see the actual visitor instead of the docker network address.
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	# ── Optional Level-3 LSP WebSocket bridge ──────────────────────────────
+	# Only reachable when you started the stack with `--profile lsp`.
+	# If the service isn't running this path returns 502, which the editor
+	# falls back from cleanly (static L1+L2 completion keeps working).
+	@lsp {
+		path /lsp /lsp/*
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	handle @lsp {
+		reverse_proxy swift-lsp:4500
+	}
+
+	# ── Web (Next.js standalone server) ────────────────────────────────────
+	handle {
+		reverse_proxy web:3001 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	# ── Security headers ───────────────────────────────────────────────────
+	header {
+		# Strict-Transport-Security: 1 year, include subdomains, preload-ready.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Standard hardening.
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+	}
+}
