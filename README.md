@@ -1,5 +1,8 @@
 # BootCamp — Brain Vault
 
+[![CI](https://github.com/rmar-dev/BootCamp/actions/workflows/ci.yml/badge.svg)](https://github.com/rmar-dev/BootCamp/actions/workflows/ci.yml)
+[![Nightly](https://github.com/rmar-dev/BootCamp/actions/workflows/nightly.yml/badge.svg)](https://github.com/rmar-dev/BootCamp/actions/workflows/nightly.yml)
+
 A hybrid Obsidian vault: personal knowledge base + project documentation, in one place.
 
 ## Open in Obsidian
