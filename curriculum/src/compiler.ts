@@ -186,7 +186,11 @@ async function compileTrackInternal(
           | 'predict_output'
           | 'multiple_choice'
           | 'capstone_submission',
-        payload: entry.payload,
+        // Prisma's `Json` field expects `InputJsonValue`. Our typed payload
+        // builder produces `Record<string, unknown>` which structurally
+        // matches but TS can't prove it — cast through unknown to satisfy
+        // the JSON-shape constraint.
+        payload: entry.payload as unknown as object,
         pointsMax: entry.exercise!.pointsMax,
         hints: entry.exercise!.hints ?? [],
         concepts: entry.exercise!.concepts ?? [],

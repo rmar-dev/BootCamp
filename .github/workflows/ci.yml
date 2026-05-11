@@ -102,6 +102,15 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://bootcamp:bootcamp@localhost:5432/bootcamp?schema=public
+      # Test-only secrets — never reused in any real environment. Without
+      # these set, the auth pipeline fails silently and downstream tests
+      # see undefined / empty UUIDs.
+      JWT_SECRET: ci-test-secret-not-for-production
+      JWT_REFRESH_SECRET: ci-test-refresh-not-for-production
+      WEB_ORIGIN: http://localhost:3001
+      FRONTEND_URL: http://localhost:3001
+      ALLOWED_EMAIL_DOMAIN: ''
+      AI_REVIEW_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -113,6 +122,9 @@ jobs:
       - name: Prisma generate
         # `postinstall` runs prisma generate but the CI cache may have skipped it.
         run: npx prisma generate
+      - name: Prisma migrate (test DB)
+        # Several integration tests TRUNCATE + INSERT; the schema must exist first.
+        run: npx prisma migrate deploy
       - name: Typecheck
         run: npx tsc --noEmit
       - name: Unit tests

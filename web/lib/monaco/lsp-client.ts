@@ -22,8 +22,8 @@ type Monaco = typeof monacoNS;
 
 export async function attachLspClient(monaco: Monaco, url: string): Promise<void> {
   // Resolve the heavy deps lazily so the bundle does not pay for them when
-  // L3 is disabled, and so a missing dep is non-fatal.
-  let MessageTransports: any;
+  // L3 is disabled, and so a missing dep is non-fatal. In v10 of
+  // `monaco-languageclient`, the action enums live in `vscode-languageclient`.
   let MonacoLanguageClient: any;
   let toSocket: any;
   let WebSocketMessageReader: any;
@@ -32,19 +32,18 @@ export async function attachLspClient(monaco: Monaco, url: string): Promise<void
   let ErrorAction: any;
 
   try {
-    // @ts-expect-error optional peer dep — install monaco-languageclient to enable L3
-    const lc = await import('monaco-languageclient');
+    const lc: any = await import('monaco-languageclient');
     MonacoLanguageClient = lc.MonacoLanguageClient;
-    CloseAction = lc.CloseAction;
-    ErrorAction = lc.ErrorAction;
-    // @ts-expect-error optional peer dep — install vscode-ws-jsonrpc to enable L3
-    const ws = await import('vscode-ws-jsonrpc');
+    const vlc: any = await import('vscode-languageclient');
+    CloseAction = vlc.CloseAction;
+    ErrorAction = vlc.ErrorAction;
+    const ws: any = await import('vscode-ws-jsonrpc');
     toSocket = ws.toSocket;
     WebSocketMessageReader = ws.WebSocketMessageReader;
     WebSocketMessageWriter = ws.WebSocketMessageWriter;
   } catch (err) {
     console.warn(
-      '[bootcamp:lsp] missing peer deps. Install monaco-languageclient + vscode-ws-jsonrpc to enable Level 3.',
+      '[bootcamp:lsp] missing peer deps. Install monaco-languageclient + vscode-ws-jsonrpc + vscode-languageclient to enable Level 3.',
       err,
     );
     return;
