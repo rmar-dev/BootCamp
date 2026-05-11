@@ -108,6 +108,33 @@ async function main() {
     },
   });
 
+  // Enroll the test student in the Kotlin placeholder track so the
+  // instructor-side student detail page has a track row to render. Without
+  // an enrollment, composeTrackContext returns [] and the skill-tree section
+  // shows only the "Not enrolled in any tracks" empty state — so the cohort
+  // and per-student override pickers never appear. The placeholder track is
+  // already published below and has zero lessons, which is fine for
+  // exercising the assignment UI.
+  const KOTLIN_PLACEHOLDER_TRACK_ID = '33333333-3333-4333-8333-333333333333';
+  const TEST_ENROLLMENT_ID = '66666666-6666-4666-8666-666666666666';
+  await prisma.enrollment.upsert({
+    where: {
+      studentId_trackId: {
+        studentId: '99999999-9999-4999-8999-999999999999',
+        trackId: KOTLIN_PLACEHOLDER_TRACK_ID,
+      },
+    },
+    update: {},
+    create: {
+      id: TEST_ENROLLMENT_ID,
+      studentId: '99999999-9999-4999-8999-999999999999',
+      trackId: KOTLIN_PLACEHOLDER_TRACK_ID,
+      trackVersion: 1,
+      assignedLevel: 'beginner',
+      status: 'active',
+    },
+  });
+
   // ---------------------------------------------------------------------------
   // Exercises (upsert by composite PK id + version)
   // ---------------------------------------------------------------------------
@@ -427,7 +454,6 @@ async function main() {
   // shows both languages even before the Kotlin curriculum is authored. Has
   // zero lessons; /tracks renders an empty-state when this is selected.
   // ---------------------------------------------------------------------------
-  const KOTLIN_PLACEHOLDER_TRACK_ID = '33333333-3333-4333-8333-333333333333';
   await prisma.track.upsert({
     where: { id_version: { id: KOTLIN_PLACEHOLDER_TRACK_ID, version: 1 } },
     update: { publishedAt: now },
