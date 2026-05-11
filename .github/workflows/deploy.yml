@@ -1,15 +1,23 @@
 name: Deploy
 
-# Two triggers:
+# Three triggers:
+#   * workflow_run      — auto-deploy as soon as CI goes green on main. This is
+#                         the "every successful push to main lands in prod" path.
+#                         The job-level `if:` below makes failed/cancelled CI
+#                         runs no-op (deploy is skipped, not failed).
 #   * workflow_dispatch — manual button in the Actions tab. Pick what to deploy.
 #   * schedule          — 04:00 UTC daily, just after the nightly health check
 #                         at 03:00. Catches drift; the gate below ensures we
 #                         never deploy a red commit.
 #
-# Both paths share the same `gate` job that requires the latest CI run on main
-# to be green. Without that, deploy is a no-op.
+# All three share the same `gate` job that requires CI to be green. Without
+# that, deploy is a no-op.
 
 on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       app:
@@ -37,19 +45,33 @@ concurrency:
 
 jobs:
   # ── 1. Gate ────────────────────────────────────────────────────────────────
-  # Verify the latest CI run on main was successful. Refuses to proceed
-  # otherwise (unless dispatched with `force: true`).
+  # Verify CI is green before deploying. For `workflow_run`, the job-level
+  # `if:` makes a failed/cancelled CI a clean skip (no red Deploy run). For
+  # `workflow_dispatch` and `schedule`, we still hit the API to find the most
+  # recent COMPLETED CI run on main and require it be green. The list+pick
+  # pattern (instead of just runs[0]) keeps us from refusing while a fresh CI
+  # is in flight — we fall back to the last completed run.
   gate:
     name: Require green CI on main
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       go: ${{ steps.check.outputs.go }}
     steps:
-      - name: Check latest CI run on main
+      - name: Check CI status
         id: check
         uses: actions/github-script@v7
         with:
           script: |
+            const eventName = context.eventName;
+            // workflow_run only enters the gate when CI succeeded (see job `if:`),
+            // so there's nothing left to verify — fast-path to green.
+            if (eventName === 'workflow_run') {
+              const sha = context.payload.workflow_run?.head_sha?.slice(0, 7) ?? '?';
+              core.info(`Triggered by successful CI on ${sha} — proceeding.`);
+              core.setOutput('go', 'true');
+              return;
+            }
             const force = '${{ inputs.force }}' === 'true';
             if (force) {
               core.warning('Force-deploy: skipping CI gate.');
@@ -61,16 +83,20 @@ jobs:
               repo: context.repo.repo,
               workflow_id: 'ci.yml',
               branch: 'main',
-              per_page: 5,
+              per_page: 10,
             });
-            const latest = runs.workflow_runs?.[0];
-            if (!latest) {
-              core.setFailed('No CI runs found on main yet.');
+            // Skip in-flight runs (conclusion=null). A manual deploy click
+            // shouldn't be refused just because someone just pushed and CI is
+            // still warming up — the last completed run still tells us
+            // whether main is in a known-good state.
+            const lastCompleted = runs.workflow_runs?.find((r) => r.conclusion !== null);
+            if (!lastCompleted) {
+              core.setFailed('No completed CI runs found on main yet.');
               return;
             }
-            core.info(`Latest CI: ${latest.conclusion} (commit ${latest.head_sha.slice(0,7)})`);
-            if (latest.conclusion !== 'success') {
-              core.setFailed(`Latest CI on main is "${latest.conclusion}" — refusing to deploy.`);
+            core.info(`Last completed CI: ${lastCompleted.conclusion} (commit ${lastCompleted.head_sha.slice(0,7)})`);
+            if (lastCompleted.conclusion !== 'success') {
+              core.setFailed(`Last completed CI on main is "${lastCompleted.conclusion}" — refusing to deploy.`);
               return;
             }
             core.setOutput('go', 'true');
