@@ -49,9 +49,12 @@ export interface StudentTrackContext {
   trackVersion: number;
   trackTitle: string;
   language: string;
-  // null when the student's cohort has no custom skill-tree assignment for
-  // this track (students fall back to the canonical Track.lessonIds).
+  // Cohort-scoped assignment. Null when no cohort or the cohort has no
+  // custom assignment — students fall back to canonical Track.lessonIds.
   activeSkillTree: { id: string; name: string } | null;
+  // Per-student override (shadows activeSkillTree for this student only).
+  // Null when no override has been set.
+  studentOverride: { id: string; name: string } | null;
   availableTrees: Array<{
     id: string;
     name: string;

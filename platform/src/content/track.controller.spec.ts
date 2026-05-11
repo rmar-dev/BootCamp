@@ -8,6 +8,7 @@ import { UserRepository } from '../auth/user.repository';
 import { EnsureStudentService } from '../submission/ensure-student';
 import { PrismaService } from '../prisma/prisma.service';
 import { CohortTrackAssignmentRepository } from '../skill-tree/cohort-track-assignment.repository';
+import { StudentTrackAssignmentRepository } from '../skill-tree/student-track-assignment.repository';
 
 describe('TrackController — cohortGate filtering', () => {
   let controller: TrackController;
@@ -31,6 +32,7 @@ describe('TrackController — cohortGate filtering', () => {
         EnsureStudentService,
         PrismaService,
         CohortTrackAssignmentRepository,
+        StudentTrackAssignmentRepository,
       ],
     }).compile();
     controller = moduleRef.get(TrackController);

@@ -16,7 +16,9 @@ import {
 } from '@/lib/students';
 import {
   clearAssignment as clearSkillTreeAssignment,
+  clearStudentAssignment,
   setAssignment as setSkillTreeAssignment,
+  setStudentAssignment,
 } from '@/lib/skill-trees';
 import {
   Badge,
@@ -152,6 +154,27 @@ export default function StudentDetailPage() {
       }
     },
     [detail?.cohortId, refresh],
+  );
+
+  // Set (or clear) a per-student skill-tree override. Shadows the cohort
+  // assignment for THIS student only — cohort-mates are unaffected. No
+  // confirm() prompt: the blast radius is one student, and the helper text
+  // in the section already calls it out.
+  const onSetStudentOverride = useCallback(
+    async (track: StudentTrackContext, newTreeId: string | '') => {
+      setError(null);
+      try {
+        if (newTreeId) {
+          await setStudentAssignment(studentId, track.trackId, newTreeId);
+        } else {
+          await clearStudentAssignment(studentId, track.trackId);
+        }
+        await refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Per-student override failed');
+      }
+    },
+    [studentId, refresh],
   );
 
   if (loading || !hydrated) {
@@ -361,13 +384,15 @@ export default function StudentDetailPage() {
         </p>
       </section>
 
-      {/* ── Skill trees (cohort-scoped) ────────────────────────────── */}
+      {/* ── Skill trees (cohort-scoped + per-student override) ─────── */}
       <section style={{ marginBottom: 24 }}>
         <Eyebrow style={{ marginBottom: 8 }}>Skill trees</Eyebrow>
         <p className="muted" style={{ margin: '0 0 12px', fontSize: 'var(--t-sm)' }}>
-          {detail.cohortId
-            ? 'Skill trees are assigned per cohort. Switching here changes the active tree for every student in this cohort, not just this one.'
-            : 'This student has no cohort, so the canonical track sequence is always used. Assign them to a cohort to enable skill-tree overrides.'}
+          Two scopes: the <strong>cohort</strong> switcher applies to every student in
+          this cohort. The <strong>per-student override</strong> shadows the cohort
+          for THIS student only — cohort-mates are unaffected. Resolution order
+          on the student side is student override → cohort assignment →
+          canonical track.
         </p>
         {detail.tracks.length === 0 ? (
           <EmptyState
@@ -377,34 +402,44 @@ export default function StudentDetailPage() {
           />
         ) : (
           <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {detail.tracks.map((t) => (
-              <li
-                key={t.trackId}
-                style={{
-                  padding: 12,
-                  border: '1px solid var(--border-subtle, #2a3340)',
-                  borderRadius: 10,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <Badge tone={t.language === 'kotlin' ? 'amber' : 'default'}>{t.language}</Badge>
-                  <strong>{t.trackTitle}</strong>
-                  <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>v{t.trackVersion}</span>
-                </div>
-                <div className="muted" style={{ fontSize: 'var(--t-sm)', marginBottom: 8 }}>
-                  Active:{' '}
-                  {t.activeSkillTree
-                    ? <strong style={{ color: 'inherit' }}>{t.activeSkillTree.name}</strong>
-                    : <em>canonical track (no override)</em>}
-                </div>
-                {detail.cohortId && (
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {detail.tracks.map((t) => {
+              const effective = t.studentOverride ?? t.activeSkillTree;
+              return (
+                <li
+                  key={t.trackId}
+                  style={{
+                    padding: 12,
+                    border: '1px solid var(--border-subtle, #2a3340)',
+                    borderRadius: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <Badge tone={t.language === 'kotlin' ? 'amber' : 'default'}>{t.language}</Badge>
+                    <strong>{t.trackTitle}</strong>
+                    <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>v{t.trackVersion}</span>
+                  </div>
+                  <div className="muted" style={{ fontSize: 'var(--t-sm)', marginBottom: 10 }}>
+                    Effective for this student:{' '}
+                    {effective
+                      ? <strong style={{ color: 'inherit' }}>{effective.name}</strong>
+                      : <em>canonical track (no override)</em>}
+                    {t.studentOverride && (
+                      <Badge tone="brand" style={{ marginLeft: 8 }}>per-student override</Badge>
+                    )}
+                  </div>
+
+                  {/* Per-student override slot — always available regardless
+                      of cohort presence. The blast radius is one student. */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                    <label style={{ fontSize: 'var(--t-xs)', minWidth: 120 }} className="muted">
+                      Override for this student:
+                    </label>
                     <Select
                       controlSize="sm"
-                      value={t.activeSkillTree?.id ?? ''}
-                      onChange={(e) => onSwitchTree(t, e.target.value)}
+                      value={t.studentOverride?.id ?? ''}
+                      onChange={(e) => onSetStudentOverride(t, e.target.value)}
                       options={[
-                        { value: '', label: '— canonical track (clear override) —' },
+                        { value: '', label: '— no per-student override —' },
                         ...t.availableTrees.map((tree) => ({
                           value: tree.id,
                           label: `${tree.name}${tree.visibility === 'private' ? ' (private)' : ''}`,
@@ -413,16 +448,40 @@ export default function StudentDetailPage() {
                     />
                     {t.availableTrees.length === 0 && (
                       <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
-                        No trees authored for this track yet.{' '}
+                        No trees authored yet.{' '}
                         <Link href="/instructor/skill-tree" style={{ color: 'inherit', textDecoration: 'underline' }}>
                           Create one →
                         </Link>
                       </span>
                     )}
                   </div>
-                )}
-              </li>
-            ))}
+
+                  {/* Cohort-scoped row — only when the student is in a cohort. */}
+                  {detail.cohortId && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: 'var(--t-xs)', minWidth: 120 }} className="muted">
+                        Cohort default:
+                      </label>
+                      <Select
+                        controlSize="sm"
+                        value={t.activeSkillTree?.id ?? ''}
+                        onChange={(e) => onSwitchTree(t, e.target.value)}
+                        options={[
+                          { value: '', label: '— canonical track (clear cohort assignment) —' },
+                          ...t.availableTrees.map((tree) => ({
+                            value: tree.id,
+                            label: `${tree.name}${tree.visibility === 'private' ? ' (private)' : ''}`,
+                          })),
+                        ]}
+                      />
+                      <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
+                        applies to all cohort-mates
+                      </span>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         )}
       </section>

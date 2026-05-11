@@ -25,6 +25,7 @@ describe('StudentsService', () => {
       skillTrees: {
         getAssignmentWithTree: jest.fn().mockResolvedValue(null),
         listVisibleForUser: jest.fn().mockResolvedValue([]),
+        getStudentOverride: jest.fn().mockResolvedValue(null),
       },
     };
   }

@@ -162,4 +162,51 @@ export class SkillTreeInstructorController {
     assertUuid(trackId, 'trackId');
     await this.service.unassign(cohortId, trackId, user.userId, user.role);
   }
+
+  // ── Per-student override ──────────────────────────────────────────────
+  // Shadows the cohort assignment for one student. Resolution order in the
+  // student-facing TrackController.detail() becomes:
+  //   StudentTrackAssignment > CohortTrackAssignment > canonical Track
+  // The caller must be the student's assigned instructor (or admin).
+
+  @Get('student-assignments/:studentId/:trackId')
+  async getStudentAssignment(
+    @Param('studentId') studentId: string,
+    @Param('trackId') trackId: string,
+  ) {
+    assertUuid(studentId, 'studentId');
+    assertUuid(trackId, 'trackId');
+    return this.service.getStudentOverride(studentId, trackId);
+  }
+
+  @Put('student-assignments/:studentId/:trackId')
+  async setStudentAssignment(
+    @Param('studentId') studentId: string,
+    @Param('trackId') trackId: string,
+    @Body() body: { skillTreeId: string },
+    @CurrentUser() user: { userId: string; role: string },
+  ): Promise<void> {
+    assertUuid(studentId, 'studentId');
+    assertUuid(trackId, 'trackId');
+    assertUuid(body.skillTreeId, 'skillTreeId');
+    await this.service.assignToStudent({
+      studentId,
+      trackId,
+      skillTreeId: body.skillTreeId,
+      callerUserId: user.userId,
+      callerRole: user.role,
+    });
+  }
+
+  @Delete('student-assignments/:studentId/:trackId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async clearStudentAssignment(
+    @Param('studentId') studentId: string,
+    @Param('trackId') trackId: string,
+    @CurrentUser() user: { userId: string; role: string },
+  ): Promise<void> {
+    assertUuid(studentId, 'studentId');
+    assertUuid(trackId, 'trackId');
+    await this.service.unassignFromStudent(studentId, trackId, user.userId, user.role);
+  }
 }

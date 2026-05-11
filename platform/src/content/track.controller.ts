@@ -12,6 +12,7 @@ import { TrackRepository } from './repositories/track.repository';
 import { LessonRepository } from './repositories/lesson.repository';
 import { CohortRepository } from '../state/repositories/cohort.repository';
 import { CohortTrackAssignmentRepository } from '../skill-tree/cohort-track-assignment.repository';
+import { StudentTrackAssignmentRepository } from '../skill-tree/student-track-assignment.repository';
 import { EnsureStudentService } from '../submission/ensure-student';
 
 export type TrackSummary = {
@@ -44,6 +45,7 @@ export class TrackController {
     private readonly cohorts: CohortRepository,
     private readonly ensureStudent: EnsureStudentService,
     private readonly skillTreeAssignments: CohortTrackAssignmentRepository,
+    private readonly studentSkillTreeAssignments: StudentTrackAssignmentRepository,
   ) {}
 
   @Get()
@@ -85,23 +87,32 @@ export class TrackController {
     if (!track) throw new NotFoundException(`Track ${id} not found`);
 
     const previewMode = mode === 'preview';
-    const cohort = previewMode
+    const studentRecord = previewMode
       ? null
-      : await (async () => {
-          const { id: studentId } = await this.ensureStudent.ensureStudent(req.user.userId);
-          return this.cohorts.findByStudentId(studentId);
-        })();
-
-    // Cohort-track assignment (sub-project G): if the student's cohort has
-    // an active SkillTree for this track, that tree's lesson sequence
-    // replaces Track.lessonIds. Versions resolve to "latest published" per
-    // lesson so the assignment survives unrelated lesson re-versioning.
-    const assignment = !previewMode && cohort
-      ? await this.skillTreeAssignments.findOneWithTree(cohort.id, track.id)
+      : await this.ensureStudent.ensureStudent(req.user.userId);
+    const cohort = !previewMode && studentRecord
+      ? await this.cohorts.findByStudentId(studentRecord.id)
       : null;
 
-    const sourceLessonIds: string[] = assignment?.skillTree.lessonIds ?? track.lessonIds;
-    const sourceLessonVersions: number[] | null = assignment ? null : track.lessonVersions;
+    // Skill-tree resolution order (highest wins):
+    //   1. Per-student override (StudentTrackAssignment) — a tree the
+    //      instructor assigned to this individual student via the
+    //      /instructor/students/[id] page.
+    //   2. Cohort assignment (CohortTrackAssignment) — sub-project G's
+    //      per-cohort override.
+    //   3. Canonical Track.lessonIds.
+    // Versions resolve to "latest published" per lesson whenever a tree is
+    // active so the assignment survives unrelated lesson re-versioning.
+    const studentOverride = !previewMode && studentRecord
+      ? await this.studentSkillTreeAssignments.findOneWithTree(studentRecord.id, track.id)
+      : null;
+    const cohortAssignment = !previewMode && cohort && !studentOverride
+      ? await this.skillTreeAssignments.findOneWithTree(cohort.id, track.id)
+      : null;
+    const activeAssignment = studentOverride ?? cohortAssignment;
+
+    const sourceLessonIds: string[] = activeAssignment?.skillTree.lessonIds ?? track.lessonIds;
+    const sourceLessonVersions: number[] | null = activeAssignment ? null : track.lessonVersions;
 
     const lessonRecords = await Promise.all(
       sourceLessonIds.map(async (lessonId: string, idx: number) => {

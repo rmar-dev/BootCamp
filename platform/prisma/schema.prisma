@@ -183,23 +183,23 @@ model User {
 }
 
 model Student {
-  id           String   @id @db.Uuid
-  userId       String?  @unique @db.Uuid
-  user         User?    @relation(fields: [userId], references: [id])
+  id           String    @id @db.Uuid
+  userId       String?   @unique @db.Uuid
+  user         User?     @relation(fields: [userId], references: [id])
   name         String
-  email        String   @unique
-  cohortId     String?  @db.Uuid
+  email        String    @unique
+  cohortId     String?   @db.Uuid
   // Per-student assigned instructor (User.id where role='instructor').
   // Independent of Cohort.instructorId — defaults to cohort lead at student
   // creation but does NOT cascade if cohort lead changes. Reassignment is
   // explicit. Null = unassigned (claimable from /instructor/students).
-  instructorId String?  @db.Uuid
+  instructorId String?   @db.Uuid
   // Instructor-assigned language. Null = unset (student sees all tracks);
   // when set, student-facing track listings are filtered to this language.
   // Mutated only via PUT /api/instructor/students/:id/language by the
   // assigned instructor or an admin.
   language     Language?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@index([instructorId])
 }
@@ -516,7 +516,8 @@ model SkillTree {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
-  assignments CohortTrackAssignment[]
+  cohortAssignments  CohortTrackAssignment[]
+  studentAssignments StudentTrackAssignment[]
 
   @@index([trackId])
   @@index([authorUserId])
@@ -547,4 +548,23 @@ model CohortTrackAssignment {
 
   @@id([cohortId, trackId])
   @@index([skillTreeId])
+}
+
+// Per-student override that shadows CohortTrackAssignment for one student
+// only. Resolution order in TrackController.detail():
+//   StudentTrackAssignment > CohortTrackAssignment > canonical Track.lessonIds
+// Deleting this row reverts the student to whatever the cohort sees. The
+// underlying SkillTree is preserved.
+model StudentTrackAssignment {
+  studentId   String   @db.Uuid
+  trackId     String   @db.Uuid
+  skillTreeId String   @db.Uuid
+  assignedAt  DateTime @default(now())
+  assignedBy  String   @db.Uuid
+
+  skillTree SkillTree @relation(fields: [skillTreeId], references: [id], onDelete: Restrict)
+
+  @@id([studentId, trackId])
+  @@index([skillTreeId])
+  @@index([trackId])
 }

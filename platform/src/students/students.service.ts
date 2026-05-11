@@ -24,9 +24,13 @@ export type StudentTrackContext = {
   trackVersion: number;
   trackTitle: string;
   language: string;
-  // null when the student's cohort hasn't been given a custom skill tree —
-  // students fall back to the canonical Track.lessonIds in that case.
+  // Cohort-scoped assignment. Null when no cohort or the cohort has no
+  // override — students fall back to canonical Track.lessonIds in that case.
   activeSkillTree: { id: string; name: string } | null;
+  // Per-student override (shadows activeSkillTree). When set, this student
+  // sees `studentOverride.lessonIds`; cohort-mates without their own override
+  // still see the cohort's tree (or the canonical track).
+  studentOverride: { id: string; name: string } | null;
   // Trees the calling instructor can pick from when switching. Filtered by
   // SkillTreeService.listVisibleForUser so we never leak another instructor's
   // private trees.
@@ -203,6 +207,9 @@ export class StudentsService {
       // Still surface the track so the UI can show "no cohort, no override".
       let activeSkillTree: StudentTrackContext['activeSkillTree'] = null;
       let availableTrees: StudentTrackContext['availableTrees'] = [];
+      // The cohort-scoped assignment only exists when the student has a
+      // cohort; the per-student override is independent and can apply even
+      // to a student in no cohort.
       if (cohortId) {
         const assignment = await this.skillTrees.getAssignmentWithTree(
           cohortId,
@@ -211,24 +218,29 @@ export class StudentsService {
         activeSkillTree = assignment
           ? { id: assignment.skillTree.id, name: assignment.skillTree.name }
           : null;
-        const visible = await this.skillTrees.listVisibleForUser({
-          trackId: track.id,
-          callerUserId: caller.userId,
-          callerRole: caller.role,
-        });
-        availableTrees = visible.map((t) => ({
-          id: t.id,
-          name: t.name,
-          visibility: t.visibility,
-          authorUserId: t.authorUserId,
-        }));
       }
+      const visible = await this.skillTrees.listVisibleForUser({
+        trackId: track.id,
+        callerUserId: caller.userId,
+        callerRole: caller.role,
+      });
+      availableTrees = visible.map((t) => ({
+        id: t.id,
+        name: t.name,
+        visibility: t.visibility,
+        authorUserId: t.authorUserId,
+      }));
+      const override = await this.skillTrees.getStudentOverride(studentId, track.id);
+      const studentOverride: StudentTrackContext['studentOverride'] = override
+        ? { id: override.skillTree.id, name: override.skillTree.name }
+        : null;
       out.push({
         trackId: track.id,
         trackVersion: track.version,
         trackTitle: track.title,
         language: track.language,
         activeSkillTree,
+        studentOverride,
         availableTrees,
       });
     }

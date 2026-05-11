@@ -3,8 +3,10 @@ import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AssignmentCoreModule } from '../state/assignment-core.module';
 import { CohortRepository } from '../state/repositories/cohort.repository';
+import { StudentRepository } from '../state/repositories/student.repository';
 import { SkillTreeRepository } from './skill-tree.repository';
 import { CohortTrackAssignmentRepository } from './cohort-track-assignment.repository';
+import { StudentTrackAssignmentRepository } from './student-track-assignment.repository';
 import { SkillTreeService } from './skill-tree.service';
 import { SkillTreeInstructorController } from './skill-tree.controller';
 
@@ -22,12 +24,15 @@ import { SkillTreeInstructorController } from './skill-tree.controller';
   providers: [
     SkillTreeRepository,
     CohortTrackAssignmentRepository,
+    StudentTrackAssignmentRepository,
     SkillTreeService,
     CohortRepository,
+    StudentRepository,
   ],
   exports: [
     SkillTreeRepository,
     CohortTrackAssignmentRepository,
+    StudentTrackAssignmentRepository,
     SkillTreeService,
   ],
 })

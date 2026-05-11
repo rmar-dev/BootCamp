@@ -35,8 +35,23 @@ describe('SkillTreeService', () => {
       findAll: jest.fn(),
       create: jest.fn(),
     };
-    const svc = new SkillTreeService(trees as any, assignments as any, cohorts as any);
-    return { svc, trees, assignments, cohorts };
+    const studentAssignments = {
+      findOneWithTree: jest.fn(),
+      findAllForStudent: jest.fn(),
+      upsert: jest.fn(),
+      remove: jest.fn(),
+    };
+    const studentsRepo = {
+      findById: jest.fn(),
+    };
+    const svc = new SkillTreeService(
+      trees as any,
+      assignments as any,
+      studentAssignments as any,
+      cohorts as any,
+      studentsRepo as any,
+    );
+    return { svc, trees, assignments, studentAssignments, cohorts, studentsRepo };
   }
 
   // ── createTree ─────────────────────────────────────────────────────────

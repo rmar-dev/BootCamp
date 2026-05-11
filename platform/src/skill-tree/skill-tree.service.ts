@@ -15,7 +15,12 @@ import {
   CohortTrackAssignmentRepository,
   type AssignmentWithTree,
 } from './cohort-track-assignment.repository';
+import {
+  StudentTrackAssignmentRepository,
+  type StudentAssignmentWithTree,
+} from './student-track-assignment.repository';
 import { CohortRepository } from '../state/repositories/cohort.repository';
+import { StudentRepository } from '../state/repositories/student.repository';
 
 const MAX_NAME = 120;
 const MAX_DESCRIPTION = 2000;
@@ -29,8 +34,32 @@ export class SkillTreeService {
   constructor(
     private readonly trees: SkillTreeRepository,
     private readonly assignments: CohortTrackAssignmentRepository,
+    private readonly studentAssignments: StudentTrackAssignmentRepository,
     private readonly cohorts: CohortRepository,
+    private readonly studentsRepo: StudentRepository,
   ) {}
+
+  /**
+   * Per-student ownership guard for the StudentTrackAssignment write surface.
+   * The caller must be the student's currently-assigned instructor (or admin).
+   * Mirrors the StudentsService.setLanguage ownership check.
+   */
+  private async assertCanTargetStudent(
+    studentId: string,
+    callerUserId: string,
+    callerRole: string,
+  ): Promise<void> {
+    if (callerRole === 'admin') return;
+    const student = await this.studentsRepo.findById(studentId);
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+    if (student.instructorId !== callerUserId) {
+      throw new ForbiddenException(
+        'Not assigned to this student — only the assigned instructor (or admin) can override their skill tree',
+      );
+    }
+  }
 
   /**
    * Cohort-scope guard for assignment writes. The composer's GET /cohorts
@@ -228,6 +257,64 @@ export class SkillTreeService {
       ) {
         // Row didn't exist — idempotent success.
         return;
+      }
+      throw err;
+    }
+  }
+
+  // ── Per-student override ───────────────────────────────────────────────
+  // Shadows the cohort assignment for one student. Resolution order in
+  // TrackController.detail() becomes:
+  //   StudentTrackAssignment > CohortTrackAssignment > canonical Track
+
+  async getStudentOverride(
+    studentId: string,
+    trackId: string,
+  ): Promise<StudentAssignmentWithTree | null> {
+    return this.studentAssignments.findOneWithTree(studentId, trackId);
+  }
+
+  async assignToStudent(input: {
+    studentId: string;
+    trackId: string;
+    skillTreeId: string;
+    callerUserId: string;
+    callerRole: string;
+  }): Promise<void> {
+    await this.assertCanTargetStudent(input.studentId, input.callerUserId, input.callerRole);
+    // The caller must be able to see the tree (own / public / admin).
+    await this.getTree(input.skillTreeId, input.callerUserId, input.callerRole);
+
+    const tree = await this.trees.findById(input.skillTreeId);
+    if (!tree) throw new NotFoundException('SkillTree not found');
+    if (tree.trackId !== input.trackId) {
+      throw new BadRequestException(
+        `Tree belongs to a different track (tree.trackId=${tree.trackId}, requested=${input.trackId})`,
+      );
+    }
+    await this.studentAssignments.upsert({
+      studentId: input.studentId,
+      trackId: input.trackId,
+      skillTreeId: input.skillTreeId,
+      assignedBy: input.callerUserId,
+    });
+  }
+
+  async unassignFromStudent(
+    studentId: string,
+    trackId: string,
+    callerUserId: string,
+    callerRole: string,
+  ): Promise<void> {
+    await this.assertCanTargetStudent(studentId, callerUserId, callerRole);
+    try {
+      await this.studentAssignments.remove(studentId, trackId);
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2025'
+      ) {
+        return; // Idempotent.
       }
       throw err;
     }

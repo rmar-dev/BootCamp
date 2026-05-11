@@ -164,3 +164,38 @@ export async function listCohorts(): Promise<CohortSummary[]> {
   if (!res.ok) throw new Error(`listCohorts failed: ${res.status}`);
   return (await res.json()) as CohortSummary[];
 }
+
+// ── Per-student override ────────────────────────────────────────────────────
+// Shadows the cohort assignment for one student. Same SkillTree row, different
+// scope: cohort-mates without their own override still see the cohort's tree
+// (or the canonical track).
+
+export async function setStudentAssignment(
+  studentId: string,
+  trackId: string,
+  skillTreeId: string,
+): Promise<void> {
+  const res = await authFetch(
+    `/api/instructor/skill-tree/student-assignments/${encodeURIComponent(studentId)}/${encodeURIComponent(trackId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ skillTreeId }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(`setStudentAssignment failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+export async function clearStudentAssignment(
+  studentId: string,
+  trackId: string,
+): Promise<void> {
+  const res = await authFetch(
+    `/api/instructor/skill-tree/student-assignments/${encodeURIComponent(studentId)}/${encodeURIComponent(trackId)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`clearStudentAssignment failed: ${res.status}`);
+  }
+}
