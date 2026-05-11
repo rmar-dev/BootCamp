@@ -15,17 +15,28 @@ import { collectSetCookies, needsRefresh, parseSetCookieValue } from '@/lib/ssr-
  * have anyway.
  */
 
-// Same resolution order as lib/api-base.ts getApiBase() server branch:
-// INTERNAL_API_BASE (in-cluster docker DNS) wins, then NEXT_PUBLIC_API_BASE
-// if it's an absolute URL, else dev default. In production NEXT_PUBLIC_API_BASE
-// is baked as "" for same-origin client use, so this MUST fall through to
-// INTERNAL_API_BASE — otherwise fetch("/api/auth/refresh") is relative and
-// undici rejects it, the refresh silently fails, and /dashboard 401s.
+// Resolve the in-cluster platform URL for the SSR-side refresh call.
+//
+// Lessons learned the hard way:
+//   1. NEXT_PUBLIC_API_BASE is baked as "" in production (same-origin via
+//      Caddy on the client). On the server, "" is a relative URL — undici
+//      rejects it. The ?? fallback doesn't fire because "" is not nullish.
+//   2. INTERNAL_API_BASE is set at *runtime* by docker-compose, but in
+//      Next.js 14 Edge Runtime middleware, runtime env reads can be
+//      unreliable depending on how the build inlines process.env. If the
+//      var wasn't present at build time, it can bake as undefined.
+//   3. NODE_ENV is reliably inlined by Next.js itself.
+//
+// So: in production, default the BASE to the docker-compose service name
+// ("platform" at :3002). The container env's INTERNAL_API_BASE still wins
+// if it makes it through to runtime — this is just the floor so we never
+// hand undici a relative URL or a port no one is listening on.
 function resolveBase(): string {
   const internal = process.env.INTERNAL_API_BASE;
   if (internal && internal.length > 0) return internal;
   const pub = process.env.NEXT_PUBLIC_API_BASE;
   if (pub && /^https?:\/\//.test(pub)) return pub;
+  if (process.env.NODE_ENV === 'production') return 'http://platform:3002';
   return 'http://localhost:3002';
 }
 const BASE = resolveBase();
