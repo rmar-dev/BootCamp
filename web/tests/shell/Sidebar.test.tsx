@@ -27,7 +27,7 @@ beforeEach(() => {
 const wrap = (node: React.ReactNode) => render(<TrackProvider>{node}</TrackProvider>);
 
 describe('Sidebar', () => {
-  it('renders main nav items', () => {
+  it('renders main nav items for student', () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { name: 'Jordan', email: 'j@x', role: 'student' },
       streak: 0,
@@ -40,11 +40,9 @@ describe('Sidebar', () => {
     expect(screen.getByText('Continue lesson')).toBeTruthy();
     expect(screen.getByText('Profile')).toBeTruthy();
     expect(screen.getByText('Leaderboard')).toBeTruthy();
-    expect(screen.getByText('Review')).toBeTruthy();
-    expect(screen.getByText(/design system/i)).toBeTruthy();
   });
 
-  it('does NOT render Instructor for student role', () => {
+  it('does NOT render Review, Design system, or Instructor for student role', () => {
     vi.mocked(useAuth).mockReturnValue({
       user: { name: 'Jordan', email: 'j@x', role: 'student' },
       streak: 0,
@@ -53,6 +51,20 @@ describe('Sidebar', () => {
     vi.mocked(usePathname).mockReturnValue('/dashboard');
     wrap(<Sidebar />);
     expect(screen.queryByText('Instructor')).toBeNull();
+    expect(screen.queryByText('Review')).toBeNull();
+    expect(screen.queryByText(/design system/i)).toBeNull();
+  });
+
+  it('renders Review and Design system for instructor role', () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { name: 'Mx', email: 'mx@x', role: 'instructor' },
+      streak: 0,
+      totalPoints: 0,
+    } as never);
+    vi.mocked(usePathname).mockReturnValue('/dashboard');
+    wrap(<Sidebar />);
+    expect(screen.getByText('Review')).toBeTruthy();
+    expect(screen.getByText(/design system/i)).toBeTruthy();
   });
 
   it('renders Instructor for instructor role', () => {

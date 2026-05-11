@@ -22,16 +22,16 @@ export function Sidebar() {
       <SidebarNavItem icon="user" label="Profile" href="/profile" active={pathname === '/profile'} />
       <SidebarNavItem icon="trophy" label="Leaderboard" href="/leaderboard" active={pathname === '/leaderboard'} />
 
-      <div className="side-section">More</div>
-      <SidebarNavItem
-        icon="refresh"
-        label="Review"
-        href="/review"
-        active={pathname === '/review'}
-        badge={<ReviewQueueBadge />}
-      />
       {isInstructor && (
         <>
+          <div className="side-section">More</div>
+          <SidebarNavItem
+            icon="refresh"
+            label="Review"
+            href="/review"
+            active={pathname === '/review'}
+            badge={<ReviewQueueBadge />}
+          />
           <SidebarNavItem
             icon="trophy"
             label="Instructor"
@@ -74,14 +74,14 @@ export function Sidebar() {
             href="/instructor/badges"
             active={pathname.startsWith('/instructor/badges')}
           />
+          <SidebarNavItem
+            icon="grid"
+            label="Design system ↗"
+            href="/design-system"
+            active={pathname === '/design-system'}
+          />
         </>
       )}
-      <SidebarNavItem
-        icon="grid"
-        label="Design system ↗"
-        href="/design-system"
-        active={pathname === '/design-system'}
-      />
 
       <SidebarUserPill />
     </aside>
