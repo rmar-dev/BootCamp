@@ -28,7 +28,15 @@ export function PlayerHead({
       <div className="player-progress">
         <div className="row-between" style={{ marginBottom: 6 }}>
           <Eyebrow>{title}</Eyebrow>
-          <span className="mono muted">
+          {/* "X/N" badge doubles as the pool-status indicator the adaptive
+              content e2e relies on. data-pool-total/data-pool-seen let the
+              test assert both numbers without parsing the visible text. */}
+          <span
+            className="mono muted"
+            data-testid="pool-status-chip"
+            data-pool-seen={stepCurrent}
+            data-pool-total={stepTotal}
+          >
             {stepCurrent}/{stepTotal}
           </span>
         </div>

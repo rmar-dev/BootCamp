@@ -23,6 +23,7 @@ export function LessonCompleteScreen(props: Props) {
     <Stack
       gap="loose"
       style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center', alignItems: 'center' }}
+      data-testid={props.variant === 'pool_complete' ? 'pool-complete-view' : 'lesson-complete-view'}
     >
       <Stack gap="tight" style={{ alignItems: 'center' }}>
         <Heading level="display" style={{ fontSize: 'var(--t-4xl)' }}>{heading}</Heading>
@@ -38,7 +39,11 @@ export function LessonCompleteScreen(props: Props) {
 
       <Row style={{ gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
         {props.variant === 'pool_complete' && props.onFreshExercises && (
-          <Button variant="primary" onClick={props.onFreshExercises}>
+          <Button
+            variant="primary"
+            onClick={props.onFreshExercises}
+            data-testid="fresh-exercises-btn"
+          >
             Fresh exercises
           </Button>
         )}
