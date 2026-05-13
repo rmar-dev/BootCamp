@@ -29,6 +29,7 @@ test.describe('Student-visible routes render without bouncing to /login', () => 
     { name: 'profile', path: '/profile', landmark: /profile/i },
     { name: 'leaderboard', path: '/leaderboard', landmark: /leaderboard/i },
     { name: 'badges', path: '/badges', landmark: /badges?|achievements/i },
+    { name: 'feedback', path: '/feedback', landmark: /feedback/i },
   ]) {
     test(`student → ${path}`, async ({ page }) => {
       await page.goto(path);
@@ -81,6 +82,7 @@ test.describe('Instructor-only routes render for instructor', () => {
     { path: '/instructor/builder', landmark: /builder|lessons/i },
     { path: '/instructor/skill-tree', landmark: /skill tree composer|skill trees/i },
     { path: '/instructor/badges', landmark: /badges?/i },
+    { path: '/instructor/feedback', landmark: /feedback inbox|feedback/i },
     { path: '/review', landmark: /review/i },
     { path: '/design-system', landmark: /design system|primitives|composites|foundations/i },
   ]) {
@@ -112,6 +114,8 @@ test.describe('Admin can reach every route', () => {
     '/instructor/builder',
     '/instructor/skill-tree',
     '/instructor/badges',
+    '/instructor/feedback',
+    '/feedback',
     '/design-system',
   ]) {
     test(`admin → ${path}`, async ({ page }) => {

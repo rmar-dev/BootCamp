@@ -40,6 +40,7 @@ describe('Sidebar', () => {
     expect(screen.getByText('Continue lesson')).toBeTruthy();
     expect(screen.getByText('Profile')).toBeTruthy();
     expect(screen.getByText('Leaderboard')).toBeTruthy();
+    expect(screen.getByText('Feedback')).toBeTruthy();
   });
 
   it('does NOT render Review, Design system, or Instructor for student role', () => {
@@ -65,6 +66,7 @@ describe('Sidebar', () => {
     wrap(<Sidebar />);
     expect(screen.getByText('Review')).toBeTruthy();
     expect(screen.getByText(/design system/i)).toBeTruthy();
+    expect(screen.getByText('Feedback inbox')).toBeTruthy();
   });
 
   it('renders Instructor for instructor role', () => {

@@ -171,6 +171,12 @@ enum HelpRequestStatus {
   resolved
 }
 
+enum FeedbackStatus {
+  new
+  seen
+  resolved
+}
+
 model User {
   id           String   @id @db.Uuid
   email        String   @unique
@@ -255,6 +261,30 @@ model ExerciseResult {
   firstPassedAt DateTime?
 
   @@unique([studentId, exerciseId])
+}
+
+// Student feedback. Two flavours, distinguished by lessonId IS NULL:
+//   * lessonId set    → per-lesson feedback (rating 1–5 + optional comment)
+//   * lessonId NULL   → general platform feedback
+// Instructors see their assigned students' feedback in /instructor/feedback;
+// admins see all. instructorReply is the inline reply on the inbox row,
+// optional. status flows new → seen → resolved.
+model StudentFeedback {
+  id                String         @id @default(uuid()) @db.Uuid
+  studentId         String         @db.Uuid
+  lessonId          String?        @db.Uuid
+  rating            Int?
+  comment           String
+  status            FeedbackStatus @default(new)
+  createdAt         DateTime       @default(now())
+  seenAt            DateTime?
+  instructorReply   String?
+  instructorReplyAt DateTime?
+  instructorReplyBy String?        @db.Uuid
+
+  @@index([studentId])
+  @@index([lessonId])
+  @@index([status, createdAt])
 }
 
 model StudentBadge {

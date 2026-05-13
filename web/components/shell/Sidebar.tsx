@@ -21,6 +21,7 @@ export function Sidebar() {
       <ContinueLessonButton active={pathname.startsWith('/lesson/')} />
       <SidebarNavItem icon="user" label="Profile" href="/profile" active={pathname === '/profile'} />
       <SidebarNavItem icon="trophy" label="Leaderboard" href="/leaderboard" active={pathname === '/leaderboard'} />
+      <SidebarNavItem icon="bookmark" label="Feedback" href="/feedback" active={pathname === '/feedback'} />
 
       {isInstructor && (
         <>
@@ -49,6 +50,12 @@ export function Sidebar() {
             label="Help inbox"
             href="/instructor/help"
             active={pathname.startsWith('/instructor/help')}
+          />
+          <SidebarNavItem
+            icon="bookmark"
+            label="Feedback inbox"
+            href="/instructor/feedback"
+            active={pathname.startsWith('/instructor/feedback')}
           />
           <SidebarNavItem
             icon="star"

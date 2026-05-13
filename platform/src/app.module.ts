@@ -15,8 +15,9 @@ import { StudentsModule } from './students/students.module';
 import { SkillTreeModule } from './skill-tree/skill-tree.module';
 import { ProgressModule } from './progress/progress.module';
 import { ReviewQueueModule } from './review-queue/review-queue.module';
+import { FeedbackModule } from './feedback/feedback.module';
 
 @Module({
-  imports: [PrismaModule, ContentModule, StateModule, ExecutionModule, AuthModule, SubmissionModule, GamificationModule, ReviewModule, InstructorReviewModule, InstructorContentModule, HelpModule, RatingsModule, StudentsModule, SkillTreeModule, ProgressModule, ReviewQueueModule],
+  imports: [PrismaModule, ContentModule, StateModule, ExecutionModule, AuthModule, SubmissionModule, GamificationModule, ReviewModule, InstructorReviewModule, InstructorContentModule, HelpModule, RatingsModule, StudentsModule, SkillTreeModule, ProgressModule, ReviewQueueModule, FeedbackModule],
 })
 export class AppModule {}
