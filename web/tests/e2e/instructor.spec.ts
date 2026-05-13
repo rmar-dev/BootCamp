@@ -151,7 +151,7 @@ test.describe('Per-student skill tree override', () => {
 
     // 2. Go to the seeded test student's detail page.
     await page.goto(`/instructor/students/${'99999999-9999-4999-8999-999999999999'}`);
-    await expect(page.getByText(/skill trees/i).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/skill trees?/i).first()).toBeVisible({ timeout: 10_000 });
 
     // 3. The "Override for this student" select should now include the
     // tree we just authored. Pick it by reading the option's literal value
@@ -167,12 +167,12 @@ test.describe('Per-student skill tree override', () => {
     expect(optionValue, 'override option for the new tree should exist').toBeTruthy();
     await overrideSelect.selectOption(optionValue!);
 
-    // 4. The track row should now surface the override — the "Effective for
-    // this student:" line includes the tree name. That proves the PUT
+    // 4. The track row should now surface the override — the "Currently
+    // active:" line includes the tree name. That proves the PUT
     // /student-assignments call landed AND the page re-rendered against
     // the new state.
     await expect(
-      page.getByText(new RegExp(`Effective for this student:.*${treeName}`, 'i')).first(),
+      page.getByText(new RegExp(`Currently active:.*${treeName}`, 'i')).first(),
     ).toBeVisible({ timeout: 8_000 });
   });
 });

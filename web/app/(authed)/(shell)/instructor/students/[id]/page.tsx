@@ -386,13 +386,13 @@ export default function StudentDetailPage() {
 
       {/* ── Skill trees (cohort-scoped + per-student override) ─────── */}
       <section style={{ marginBottom: 24 }}>
-        <Eyebrow style={{ marginBottom: 8 }}>Skill trees</Eyebrow>
+        <Eyebrow style={{ marginBottom: 8 }}>Skill tree</Eyebrow>
         <p className="muted" style={{ margin: '0 0 12px', fontSize: 'var(--t-sm)' }}>
-          Two scopes: the <strong>cohort</strong> switcher applies to every student in
-          this cohort. The <strong>per-student override</strong> shadows the cohort
-          for THIS student only — cohort-mates are unaffected. Resolution order
-          on the student side is student override → cohort assignment →
-          canonical track.
+          Choose the lesson sequence this student sees. The{' '}
+          <strong>personal pick</strong> applies to this student only;
+          the <strong>cohort default</strong> applies to every student in the
+          cohort. When both are set, the personal pick wins. Tracks are
+          filtered to the student&apos;s assigned language.
         </p>
         {detail.tracks.length === 0 ? (
           <EmptyState
@@ -419,33 +419,35 @@ export default function StudentDetailPage() {
                     <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>v{t.trackVersion}</span>
                   </div>
                   <div className="muted" style={{ fontSize: 'var(--t-sm)', marginBottom: 10 }}>
-                    Effective for this student:{' '}
+                    Currently active:{' '}
                     {effective
                       ? <strong style={{ color: 'inherit' }}>{effective.name}</strong>
-                      : <em>canonical track (no override)</em>}
+                      : <em>track default</em>}
                     {t.studentOverride && (
-                      <Badge tone="brand" style={{ marginLeft: 8 }}>per-student override</Badge>
+                      <Badge tone="brand" style={{ marginLeft: 8 }}>personal pick</Badge>
                     )}
                   </div>
 
-                  {/* Per-student override slot — always available regardless
-                      of cohort presence. The blast radius is one student. */}
+                  {/* Personal pick — applies to this one student. */}
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                    <label style={{ fontSize: 'var(--t-xs)', minWidth: 120 }} className="muted">
-                      Override for this student:
+                    <label style={{ fontSize: 'var(--t-xs)', minWidth: 150 }} className="muted">
+                      Personal pick:
                     </label>
                     <Select
                       controlSize="sm"
                       value={t.studentOverride?.id ?? ''}
                       onChange={(e) => onSetStudentOverride(t, e.target.value)}
                       options={[
-                        { value: '', label: '— no per-student override —' },
+                        { value: '', label: 'Use cohort default' },
                         ...t.availableTrees.map((tree) => ({
                           value: tree.id,
                           label: `${tree.name}${tree.visibility === 'private' ? ' (private)' : ''}`,
                         })),
                       ]}
                     />
+                    <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
+                      this student only
+                    </span>
                     {t.availableTrees.length === 0 && (
                       <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
                         No trees authored yet.{' '}
@@ -456,10 +458,10 @@ export default function StudentDetailPage() {
                     )}
                   </div>
 
-                  {/* Cohort-scoped row — only when the student is in a cohort. */}
+                  {/* Cohort default — only when the student is in a cohort. */}
                   {detail.cohortId && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: 'var(--t-xs)', minWidth: 120 }} className="muted">
+                      <label style={{ fontSize: 'var(--t-xs)', minWidth: 150 }} className="muted">
                         Cohort default:
                       </label>
                       <Select
@@ -467,7 +469,7 @@ export default function StudentDetailPage() {
                         value={t.activeSkillTree?.id ?? ''}
                         onChange={(e) => onSwitchTree(t, e.target.value)}
                         options={[
-                          { value: '', label: '— canonical track (clear cohort assignment) —' },
+                          { value: '', label: 'Use track default' },
                           ...t.availableTrees.map((tree) => ({
                             value: tree.id,
                             label: `${tree.name}${tree.visibility === 'private' ? ' (private)' : ''}`,
@@ -475,7 +477,7 @@ export default function StudentDetailPage() {
                         ]}
                       />
                       <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
-                        applies to all cohort-mates
+                        every student in this cohort
                       </span>
                     </div>
                   )}

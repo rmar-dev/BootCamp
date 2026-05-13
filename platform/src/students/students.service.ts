@@ -180,7 +180,16 @@ export class StudentsService {
     const openHelpRequestCount = helpRequests.filter(
       (r) => r.status !== HelpRequestStatus.resolved,
     ).length;
-    const tracks = await this.composeTrackContext(student.cohortId, studentId, caller);
+    // Mirror what the student actually sees: when student.language is set,
+    // the student-facing /api/tracks filters to that one language. The
+    // instructor view should reflect the same scope — showing a Kotlin
+    // skill-tree picker for a Swift-only student is confusing and pointless.
+    const tracks = await this.composeTrackContext(
+      student.cohortId,
+      studentId,
+      caller,
+      student.language ?? null,
+    );
     return {
       student,
       cohortId: student.cohortId,
@@ -195,6 +204,7 @@ export class StudentsService {
     cohortId: string | null,
     studentId: string,
     caller: { userId: string; role: string },
+    studentLanguage: Language | null,
   ): Promise<StudentTrackContext[]> {
     const enrollments = await this.enrollments.listByStudent(studentId);
     if (enrollments.length === 0) return [];
@@ -202,6 +212,9 @@ export class StudentsService {
     for (const e of enrollments) {
       const track = await this.tracks.findByVersion(e.trackId, e.trackVersion);
       if (!track) continue;
+      // Filter to the student's assigned language. Null = student hasn't
+      // been pinned to a language yet → show every enrolled track.
+      if (studentLanguage && track.language !== studentLanguage) continue;
       // Skill trees are cohort-scoped — without a cohort, the student is
       // always on the canonical Track.lessonIds and there's nothing to swap.
       // Still surface the track so the UI can show "no cohort, no override".
