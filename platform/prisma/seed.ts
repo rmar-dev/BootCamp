@@ -91,6 +91,18 @@ async function main() {
     },
   });
 
+  // Clear the test student's submission history so the e2e suite stays
+  // re-runnable — once an exercise is passed it's locked, and the
+  // playwright tests submit MC/fill/predict/code answers. Without this,
+  // the second `npm run seed` followed by `npx playwright test` cycle
+  // leaves stale "first_try" status on every exercise and the renderer
+  // refuses to re-submit. Safe for dev — only touches rows for this
+  // hardcoded student id.
+  const TEST_STUDENT_ID = '99999999-9999-4999-8999-999999999999';
+  await prisma.attempt.deleteMany({ where: { studentId: TEST_STUDENT_ID } });
+  await prisma.exerciseResult.deleteMany({ where: { studentId: TEST_STUDENT_ID } });
+  await prisma.lessonAssignment.deleteMany({ where: { studentId: TEST_STUDENT_ID } });
+
   // Test Student joins the dev cohort and is assigned to the test
   // instructor. Both fields are independent: cohortId is the cohort the
   // student belongs to; instructorId is their personal mentor (defaults to
@@ -134,6 +146,38 @@ async function main() {
       status: 'active',
     },
   });
+
+  // Also enroll the test student in the curriculum-published Swift
+  // Fundamentals track so the e2e per-student-override flow has a track
+  // with real lessons to compose a tree against. We look it up by language
+  // + title since the curriculum compiler hashes the id from content.
+  const swiftFundamentals = await prisma.track.findFirst({
+    where: {
+      language: 'swift',
+      title: 'Swift Fundamentals',
+      publishedAt: { not: null },
+    },
+    orderBy: { version: 'desc' },
+  });
+  if (swiftFundamentals) {
+    await prisma.enrollment.upsert({
+      where: {
+        studentId_trackId: {
+          studentId: '99999999-9999-4999-8999-999999999999',
+          trackId: swiftFundamentals.id,
+        },
+      },
+      update: {},
+      create: {
+        id: '55555555-5555-4555-8555-555555555555',
+        studentId: '99999999-9999-4999-8999-999999999999',
+        trackId: swiftFundamentals.id,
+        trackVersion: swiftFundamentals.version,
+        assignedLevel: 'beginner',
+        status: 'active',
+      },
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Exercises (upsert by composite PK id + version)

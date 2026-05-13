@@ -8,9 +8,22 @@ export function serverCheck(
     case 'multiple_choice': {
       const submitted = (answer as string[]).slice().sort();
       const correct = payload.correctOptionIds.slice().sort();
-      const passed =
-        submitted.length === correct.length &&
-        submitted.every((id, i) => id === correct[i]);
+      // Two semantics depending on whether the author marked the exercise
+      // multi-select:
+      //   multiSelect=true  → student must pick EVERY correct option and no
+      //                       others (set-equality).
+      //   multiSelect=false → student picks ONE option; pass if it's in the
+      //                       set of acceptable correct options. This is the
+      //                       "any of these is right" pattern the seed uses
+      //                       (e.g. "Which language are you learning?" with
+      //                       Swift / Kotlin / Both all marked correct).
+      if (payload.multiSelect) {
+        const passed =
+          submitted.length === correct.length &&
+          submitted.every((id, i) => id === correct[i]);
+        return { passed };
+      }
+      const passed = submitted.length === 1 && correct.includes(submitted[0]);
       return { passed };
     }
 

@@ -51,6 +51,26 @@ describe('serverCheck', () => {
     expect(result.passed).toBe(false);
   });
 
+  it('MC multiSelect=false: passes when the single pick is in correctOptionIds', () => {
+    const singlePick: MultipleChoicePayload = {
+      ...mcPayload,
+      multiSelect: false,
+      correctOptionIds: ['a', 'c'], // any of these is acceptable
+    };
+    expect(serverCheck(singlePick, ['a']).passed).toBe(true);
+    expect(serverCheck(singlePick, ['c']).passed).toBe(true);
+    expect(serverCheck(singlePick, ['b']).passed).toBe(false);
+  });
+
+  it('MC multiSelect=false: rejects more than one pick even if all are correct', () => {
+    const singlePick: MultipleChoicePayload = {
+      ...mcPayload,
+      multiSelect: false,
+      correctOptionIds: ['a', 'c'],
+    };
+    expect(serverCheck(singlePick, ['a', 'c']).passed).toBe(false);
+  });
+
   it('fill_blank: returns passed=true after trimming whitespace', () => {
     const result = serverCheck(fillPayload, { b1: '  Int  ' });
     expect(result.passed).toBe(true);
