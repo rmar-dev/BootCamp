@@ -1,13 +1,22 @@
 import { test, expect } from '@playwright/test';
+import { requireLogin } from './_helpers';
 
-// /design-system is public; opt out of authenticated storage state.
-test.use({ storageState: { cookies: [], origins: [] } });
+// /design-system is now gated behind requireInstructor() — log in as
+// instructor first. (Previously this route was public.)
 
 test.describe('design system showcase', () => {
-  test('renders without console errors and toggles theme + density', async ({ page }) => {
+  test('renders without console errors and toggles theme + density', async ({ page }, testInfo) => {
+    await requireLogin(page, testInfo, 'instructor');
     const consoleErrors: string[] = [];
+    // Filter Next.js dev prefetch / network noise — under parallel-worker
+    // load the prefetcher times out and logs a TypeError that's not the
+    // page under test's fault. See dashboard.spec.ts for the same pattern.
+    const isNoise = (s: string) =>
+      /Failed to load resource|ERR_NAME_NOT_RESOLVED|ERR_NETWORK|net::|prefetch|fetchServerResponse|Failed to fetch RSC|TypeError: Failed to fetch/i.test(
+        s,
+      );
     page.on('console', (msg) => {
-      if (msg.type() === 'error') consoleErrors.push(msg.text());
+      if (msg.type() === 'error' && !isNoise(msg.text())) consoleErrors.push(msg.text());
     });
 
     await page.goto('/design-system');

@@ -63,12 +63,14 @@ test.describe('Tracks page', () => {
     await expect(page).toHaveURL(/\/tracks$/);
   });
 
-  test('sidebar Continue Lesson regression: still navigates to /tracks', async ({ page }) => {
+  test('sidebar Continue Lesson navigates to the current lesson (or /tracks if none)', async ({ page }) => {
     await page.goto('/dashboard');
-    // The continue lesson button is in the sidebar; it has href="/tracks" per ContinueLessonButton.tsx
-    // Label is "Continue lesson" (lowercase 'l')
+    // ContinueLessonButton resolves to /lesson/<currentLessonId> if there is
+    // a current lesson on the active track, otherwise /tracks. Either is a
+    // valid landing target for this regression test — what we're guarding
+    // against is the button hanging or 404-ing.
     const continueLink = page.getByRole('link', { name: /continue lesson/i }).first();
     await continueLink.click();
-    await expect(page).toHaveURL(/\/tracks$/);
+    await expect(page).toHaveURL(/\/(tracks|lesson\/.+)$/, { timeout: 8_000 });
   });
 });

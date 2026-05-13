@@ -14,28 +14,25 @@ import { requireLogin, SEED, triggerMonacoSuggest } from './_helpers';
 //   * The model's language id doesn't match the registered provider id
 //   * A throw in registerSwiftLanguageServices kills registration
 
-async function openSeedSwiftCodeExercise(page: Page): Promise<void> {
-  // The seeded "Hello BootCamp" lesson has a Swift code block. The exercise
-  // index isn't stable but the sidebar lists every block by type — we click
-  // the "code" entry directly to land on it. Filter to the *swift* one in
-  // case there's also a kotlin block.
-  await page.goto(`/lesson/${SEED.lessonId}`);
-  await expect(page.getByRole('heading', { name: /hello bootcamp/i })).toBeVisible();
-  const sidebar = page.getByRole('navigation', { name: 'exercises' });
-  // Click the first 'code' entry — seed has Swift code first, Kotlin code second.
-  await sidebar.getByText('code', { exact: false }).first().click();
-  // The editor mounts inside CodeExercise's Monaco wrapper. Wait for the
-  // `.monaco-editor` class which Monaco adds once the editor is ready.
+// Steps in the seeded "Hello BootCamp" lesson assignment:
+//   step 5 = Swift code exercise
+// The Kotlin code block is filtered out of the seeded student's assignment,
+// so we only e2e the Swift autocomplete path. Kotlin's static provider is
+// covered by unit tests in tests/monaco/language-services.test.ts.
+const STEP_CODE_SWIFT = 5;
+
+async function openSwiftCodeExercise(page: Page): Promise<void> {
+  await page.goto(`/lesson/${SEED.lessonId}?step=${STEP_CODE_SWIFT}`);
+  // Wait for the player shell, then for Monaco to attach.
+  await expect(page.getByRole('button', { name: /back to track/i })).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(page.locator('.monaco-editor').first()).toBeVisible({ timeout: 15_000 });
 }
 
 async function focusEditor(page: Page): Promise<void> {
-  // Monaco's input is the hidden .inputarea inside .monaco-editor. Clicking
-  // the visible editor area is the most robust way to focus it.
   const editor = page.locator('.monaco-editor').first();
   await editor.click();
-  // Wait for the cursor to actually be focused — without this, the first
-  // keystroke can be lost to layout.
   await page.waitForTimeout(150);
 }
 
@@ -52,7 +49,7 @@ test.describe('Monaco autocomplete — Swift', () => {
       const text = msg.text();
       if (text.includes('[bootcamp]')) logs.push(text);
     });
-    await openSeedSwiftCodeExercise(page);
+    await openSwiftCodeExercise(page);
     // Give the editor a beat to mount and run beforeMount.
     await page.waitForTimeout(1500);
     const installLog = logs.find((l) => /Monaco language services installed/.test(l));
@@ -62,7 +59,7 @@ test.describe('Monaco autocomplete — Swift', () => {
   });
 
   test('typing a Swift keyword shows our keyword suggestions', async ({ page }) => {
-    await openSeedSwiftCodeExercise(page);
+    await openSwiftCodeExercise(page);
     await focusEditor(page);
     // Move to end of file and start typing a Swift-specific keyword.
     await page.keyboard.press('Control+End');
@@ -83,7 +80,7 @@ test.describe('Monaco autocomplete — Swift', () => {
   });
 
   test('typing `[1, 2, 3].` suggests Array methods (Swift static provider)', async ({ page }) => {
-    await openSeedSwiftCodeExercise(page);
+    await openSwiftCodeExercise(page);
     await focusEditor(page);
     await page.keyboard.press('Control+End');
     await page.keyboard.press('Enter');
@@ -98,38 +95,9 @@ test.describe('Monaco autocomplete — Swift', () => {
     const matches = ['map', 'filter', 'reduce', 'foreach', 'first'].filter((m) =>
       labels.includes(m),
     );
-    expect(matches.length, `expected at least 2 Array methods, got: ${labels}`).toBeGreaterThanOrEqual(2);
-  });
-});
-
-test.describe('Monaco autocomplete — Kotlin', () => {
-  test.beforeEach(async ({ page }, testInfo) => {
-    await requireLogin(page, testInfo, 'student');
-  });
-
-  test('typing `listOf(1, 2, 3).` suggests collection methods', async ({ page }) => {
-    // Navigate to the Kotlin code exercise via the sidebar (second "code"
-    // entry in the seed). If only one code block exists for this student
-    // (Swift-only cohort), skip.
-    await page.goto(`/lesson/${SEED.lessonId}`);
-    await expect(page.getByRole('heading', { name: /hello bootcamp/i })).toBeVisible();
-    const sidebar = page.getByRole('navigation', { name: 'exercises' });
-    const codeEntries = sidebar.getByText('code', { exact: false });
-    const count = await codeEntries.count();
-    if (count < 2) test.skip(true, 'Seed has no Kotlin code exercise visible to this student');
-    await codeEntries.nth(1).click();
-
-    await expect(page.locator('.monaco-editor').first()).toBeVisible({ timeout: 15_000 });
-    await focusEditor(page);
-    await page.keyboard.press('Control+End');
-    await page.keyboard.press('Enter');
-    await page.keyboard.type('listOf(1, 2, 3).', { delay: 30 });
-    const widget = await triggerMonacoSuggest(page);
-    await expect(widget).toBeVisible({ timeout: 5_000 });
-    const labels = (await widget.locator('.monaco-list-row').allTextContents()).join(' | ').toLowerCase();
-    const matches = ['map', 'filter', 'fold', 'foreach', 'first', 'size'].filter((m) =>
-      labels.includes(m),
-    );
-    expect(matches.length, `expected at least 2 Kotlin collection methods, got: ${labels}`).toBeGreaterThanOrEqual(2);
+    expect(
+      matches.length,
+      `expected at least 2 Array methods, got: ${labels}`,
+    ).toBeGreaterThanOrEqual(2);
   });
 });

@@ -28,7 +28,7 @@ test.describe('Student-visible routes render without bouncing to /login', () => 
     { name: 'tracks', path: '/tracks', landmark: /your path forward|skill tree/i },
     { name: 'profile', path: '/profile', landmark: /profile/i },
     { name: 'leaderboard', path: '/leaderboard', landmark: /leaderboard/i },
-    { name: 'badges', path: '/badges', landmark: /badges?/i },
+    { name: 'badges', path: '/badges', landmark: /badges?|achievements/i },
   ]) {
     test(`student → ${path}`, async ({ page }) => {
       await page.goto(path);
@@ -43,9 +43,11 @@ test.describe('Student-visible routes render without bouncing to /login', () => 
 
   test('lesson immersive route renders the seeded "Hello BootCamp" lesson', async ({ page }) => {
     await page.goto(`/lesson/${SEED.lessonId}`);
-    await expect(page.getByRole('heading', { name: /hello bootcamp/i })).toBeVisible({
+    // Title renders as <Eyebrow>, not a heading. Wait for the player shell.
+    await expect(page.getByRole('button', { name: /back to track/i })).toBeVisible({
       timeout: 10_000,
     });
+    await expect(page.getByText('Hello BootCamp', { exact: false }).first()).toBeVisible();
     await assertNoErrorState(page);
   });
 
