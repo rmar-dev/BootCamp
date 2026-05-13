@@ -2,6 +2,9 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // prod-smoke runs via playwright.config.prod.ts against a deployed origin
+  // (no webServer / no seed). Exclude it from the local dev suite.
+  testIgnore: /prod-smoke\.spec\.ts$/,
   // Runs once before all tests — re-seeds the platform DB so the suite's
   // submission tests start from a clean attempt history.
   globalSetup: require.resolve('./tests/e2e/_global-setup.ts'),
