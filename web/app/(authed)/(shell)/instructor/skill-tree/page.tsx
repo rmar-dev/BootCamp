@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/layout/AuthProvider';
 import { forkLessonToDraft } from '@/lib/builder';
 import {
@@ -19,10 +19,12 @@ import {
   listCohorts,
   listTrees,
   setAssignment,
+  setStudentAssignment,
   type SkillTree,
   type SkillTreeVisibility,
   updateTree,
 } from '@/lib/skill-trees';
+import { fetchStudentDetail } from '@/lib/students';
 import {
   Badge,
   Button,
@@ -44,6 +46,14 @@ type SaveAsModalState =
 
 export default function SkillTreeComposerPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // For-student mode: when the composer is opened from a student detail page
+  // with `?trackId=…&forStudent=…`, we (a) pre-select the track, (b) show a
+  // banner explaining the scope, and (c) on Save-as auto-assign the freshly
+  // created tree as that student's personal override and bounce back.
+  const queryTrackId = searchParams?.get('trackId') ?? '';
+  const forStudentId = searchParams?.get('forStudent') ?? '';
+  const [forStudentName, setForStudentName] = useState<string | null>(null);
   const { user, loading } = useAuth();
   const [tracks, setTracks] = useState<TrackSummary[]>([]);
   const [trackId, setTrackId] = useState<string>('');
@@ -89,7 +99,13 @@ export default function SkillTreeComposerPage() {
     Promise.all([
       fetchTracks().then((t) => {
         setTracks(t);
-        if (t.length > 0) setTrackId(t[0].id);
+        // Prefer the ?trackId= from the URL when present (for-student deep-link
+        // from the student detail page) and it exists in the list. Otherwise
+        // fall back to the first track.
+        const preferred = queryTrackId && t.some((tr) => tr.id === queryTrackId)
+          ? queryTrackId
+          : t[0]?.id ?? '';
+        if (preferred) setTrackId(preferred);
       }),
       listCohorts()
         .then((c) => {
@@ -97,8 +113,13 @@ export default function SkillTreeComposerPage() {
           if (c.length > 0) setCohortId(c[0].id);
         })
         .catch(() => setCohorts([])),
+      forStudentId
+        ? fetchStudentDetail(forStudentId)
+            .then((d) => setForStudentName(d?.student.name ?? null))
+            .catch(() => setForStudentName(null))
+        : Promise.resolve(),
     ]).finally(() => setHydrated(true));
-  }, [user, loading, router]);
+  }, [user, loading, router, queryTrackId, forStudentId]);
 
   // ── Refresh trees + active assignment whenever track changes ──────────
   const refreshTrees = useCallback(async (forTrackId: string) => {
@@ -271,6 +292,27 @@ export default function SkillTreeComposerPage() {
           visibility,
           lessonIds: planIds,
         });
+        // For-student deep-link mode: chain a setStudentAssignment, then bounce
+        // back to the student page. We swallow assignment failure into a
+        // visible error rather than redirecting on a half-done state.
+        if (forStudentId) {
+          try {
+            await setStudentAssignment(forStudentId, trackId, created.id);
+          } catch (assignErr) {
+            setFeedback({
+              kind: 'error',
+              message: `Tree "${created.name}" created, but assigning it to the student failed: ${
+                assignErr instanceof Error ? assignErr.message : String(assignErr)
+              }. You can pick it from the student page.`,
+            });
+            setLoadedTree(created);
+            setSaveAsModal({ open: false });
+            await refreshTrees(trackId);
+            return;
+          }
+          router.replace(`/instructor/students/${encodeURIComponent(forStudentId)}`);
+          return;
+        }
         setLoadedTree(created);
         setSaveAsModal({ open: false });
         setFeedback({ kind: 'success', message: `Created "${created.name}".` });
@@ -282,7 +324,7 @@ export default function SkillTreeComposerPage() {
         });
       }
     },
-    [trackId, planIds, refreshTrees],
+    [trackId, planIds, refreshTrees, forStudentId, router],
   );
 
   const onDeleteLoadedTree = useCallback(async () => {
@@ -407,6 +449,47 @@ export default function SkillTreeComposerPage() {
           to change what its students see in Your Path.
         </p>
       </header>
+
+      {forStudentId && (
+        <div
+          role="status"
+          style={{
+            marginBottom: 18,
+            padding: '12px 14px',
+            borderRadius: 10,
+            border: '1px solid var(--peacock-500, #0e7490)',
+            background: 'color-mix(in oklab, var(--peacock-500, #0e7490) 12%, transparent)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ fontSize: 'var(--t-sm)' }}>
+            Composing a new tree for{' '}
+            <strong>{forStudentName ?? 'student'}</strong>
+            {trackId && tracks.length > 0 && (
+              <>
+                {' '}
+                on{' '}
+                <strong>
+                  {tracks.find((t) => t.id === trackId)?.title ?? 'this track'}
+                </strong>
+              </>
+            )}
+            . When you Save it, it will be auto-assigned as this student&apos;s
+            personal pick.
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/instructor/students/${encodeURIComponent(forStudentId)}`)}
+          >
+            Cancel and go back
+          </Button>
+        </div>
+      )}
 
       {/* ── Track + cohort selectors ─────────────────────────────────── */}
       <div
@@ -544,13 +627,21 @@ export default function SkillTreeComposerPage() {
             onClick={() =>
               setSaveAsModal({
                 open: true,
-                defaultName: loadedTree ? `${loadedTree.name} (copy)` : 'New skill tree',
+                defaultName: loadedTree
+                  ? `${loadedTree.name} (copy)`
+                  : forStudentId && forStudentName
+                    ? `${forStudentName} — personal track`
+                    : 'New skill tree',
               })
             }
-            title="Create a new tree from the current sequence"
+            title={
+              forStudentId
+                ? `Create a new tree and assign it as ${forStudentName ?? "this student"}'s personal pick`
+                : 'Create a new tree from the current sequence'
+            }
           >
             <Icon name="plus" size={12} />
-            Save as new tree…
+            {forStudentId ? 'Save & assign to student…' : 'Save as new tree…'}
           </Button>
         </div>
       </div>
@@ -766,6 +857,7 @@ export default function SkillTreeComposerPage() {
       {saveAsModal.open && (
         <SaveAsTreeModal
           defaultName={saveAsModal.defaultName}
+          forStudentName={forStudentId ? forStudentName : null}
           onCancel={() => setSaveAsModal({ open: false })}
           onSubmit={onSaveAs}
         />
@@ -912,10 +1004,12 @@ function TreeRow({
 
 function SaveAsTreeModal({
   defaultName,
+  forStudentName,
   onCancel,
   onSubmit,
 }: {
   defaultName: string;
+  forStudentName: string | null;
   onCancel: () => void;
   onSubmit: (name: string, description: string, visibility: SkillTreeVisibility) => Promise<void> | void;
 }) {
@@ -939,7 +1033,7 @@ function SaveAsTreeModal({
       open={true}
       onClose={onCancel}
       size="md"
-      title="Save as new tree"
+      title={forStudentName ? `Save and assign to ${forStudentName}` : 'Save as new tree'}
       footer={
         <>
           <Button variant="ghost" size="sm" onClick={onCancel} disabled={submitting}>
@@ -951,7 +1045,7 @@ function SaveAsTreeModal({
             onClick={handleSubmit}
             disabled={!name.trim() || submitting}
           >
-            Create tree
+            {forStudentName ? 'Create & assign' : 'Create tree'}
           </Button>
         </>
       }

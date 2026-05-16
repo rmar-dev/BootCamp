@@ -448,12 +448,16 @@ export default function StudentDetailPage() {
                     <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
                       this student only
                     </span>
+                    <Link
+                      href={`/instructor/skill-tree?trackId=${encodeURIComponent(t.trackId)}&forStudent=${encodeURIComponent(studentId)}`}
+                      style={{ fontSize: 'var(--t-xs)', textDecoration: 'underline', color: 'inherit' }}
+                      title="Compose a new skill tree and auto-assign it as this student's personal pick"
+                    >
+                      Create new tree for this student →
+                    </Link>
                     {t.availableTrees.length === 0 && (
                       <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
-                        No trees authored yet.{' '}
-                        <Link href="/instructor/skill-tree" style={{ color: 'inherit', textDecoration: 'underline' }}>
-                          Create one →
-                        </Link>
+                        No trees authored yet.
                       </span>
                     )}
                   </div>
