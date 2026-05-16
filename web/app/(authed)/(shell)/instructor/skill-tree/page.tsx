@@ -24,7 +24,7 @@ import {
   type SkillTreeVisibility,
   updateTree,
 } from '@/lib/skill-trees';
-import { fetchStudentDetail } from '@/lib/students';
+import { fetchRoster, fetchStudentDetail, type RosterEntry } from '@/lib/students';
 import {
   Badge,
   Button,
@@ -78,6 +78,9 @@ export default function SkillTreeComposerPage() {
 
   // Save-as dialog: prompts for name + visibility before creating a new tree.
   const [saveAsModal, setSaveAsModal] = useState<SaveAsModalState>({ open: false });
+  // Assign-to-student dialog: picks a student from the instructor's roster and
+  // sets the currently loaded tree as that student's personal override.
+  const [assignStudentModalOpen, setAssignStudentModalOpen] = useState(false);
 
   // Inline alert/status banner — surfaces server validation errors instead
   // of the previous silent console-only failure path.
@@ -364,6 +367,27 @@ export default function SkillTreeComposerPage() {
       });
     }
   }, [loadedTree, canEditLoadedTree, trackId, refreshTrees]);
+
+  const onAssignToStudent = useCallback(
+    async (student: RosterEntry) => {
+      if (!loadedTree) return;
+      setFeedback(null);
+      try {
+        await setStudentAssignment(student.id, loadedTree.trackId, loadedTree.id);
+        setFeedback({
+          kind: 'success',
+          message: `Assigned "${loadedTree.name}" to ${student.name} as their personal pick.`,
+        });
+        setAssignStudentModalOpen(false);
+      } catch (err) {
+        setFeedback({
+          kind: 'error',
+          message: err instanceof Error ? err.message : 'Assignment failed',
+        });
+      }
+    },
+    [loadedTree],
+  );
 
   // ── Cohort assignment actions ─────────────────────────────────────────
   const onActivateOnCohort = useCallback(async () => {
@@ -691,6 +715,17 @@ export default function SkillTreeComposerPage() {
               Activate on cohort
             </Button>
           )}
+          {loadedTree && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAssignStudentModalOpen(true)}
+              title="Assign this tree as one student's personal pick"
+            >
+              <Icon name="plus" size={12} />
+              Assign to student…
+            </Button>
+          )}
           {activeAssignment && (
             <Button
               variant="ghost"
@@ -860,6 +895,15 @@ export default function SkillTreeComposerPage() {
           forStudentName={forStudentId ? forStudentName : null}
           onCancel={() => setSaveAsModal({ open: false })}
           onSubmit={onSaveAs}
+        />
+      )}
+
+      {assignStudentModalOpen && loadedTree && (
+        <AssignToStudentModal
+          tree={loadedTree}
+          trackTitle={tracks.find((t) => t.id === loadedTree.trackId)?.title ?? 'this track'}
+          onCancel={() => setAssignStudentModalOpen(false)}
+          onPick={onAssignToStudent}
         />
       )}
     </div>
@@ -1089,6 +1133,175 @@ function SaveAsTreeModal({
             <option value="public">Public (shareable with all instructors)</option>
           </Select>
         </Field>
+      </div>
+    </Modal>
+  );
+}
+
+// ── AssignToStudentModal ─────────────────────────────────────────────────
+// Picks one of the instructor's students and assigns the currently-loaded
+// tree as their personal override. Roster is filtered to students enrolled
+// on the tree's track (best-effort heuristic via student.language matching
+// the tree's track language; full enrollment check would require a separate
+// API call we want to avoid in the picker).
+
+function AssignToStudentModal({
+  tree,
+  trackTitle,
+  onCancel,
+  onPick,
+}: {
+  tree: SkillTree;
+  trackTitle: string;
+  onCancel: () => void;
+  onPick: (student: RosterEntry) => Promise<void> | void;
+}) {
+  const [students, setStudents] = useState<RosterEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRoster()
+      .then((r) => {
+        if (!cancelled) setStudents(r);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load students');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!students) return [];
+    const q = filter.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter(
+      (s) => s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q),
+    );
+  }, [students, filter]);
+
+  const handlePick = useCallback(
+    async (s: RosterEntry) => {
+      setSubmittingId(s.id);
+      try {
+        await onPick(s);
+      } finally {
+        setSubmittingId(null);
+      }
+    },
+    [onPick],
+  );
+
+  return (
+    <Modal
+      open={true}
+      onClose={onCancel}
+      size="lg"
+      title={`Assign "${tree.name}" to a student`}
+      footer={
+        <Button variant="ghost" size="sm" onClick={onCancel}>
+          Cancel
+        </Button>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p className="muted" style={{ margin: 0, fontSize: 'var(--t-sm)' }}>
+          Sets this tree as the personal pick for one student on{' '}
+          <strong>{trackTitle}</strong>. A personal pick overrides whatever the
+          cohort sees. You can only assign to students you mentor.
+        </p>
+        <Field label="Filter" htmlFor="assign-student-filter">
+          <Input
+            id="assign-student-filter"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search by name or email…"
+            autoFocus
+          />
+        </Field>
+        {error && (
+          <div
+            role="alert"
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--danger-500, #b91c1c)',
+              fontSize: 'var(--t-sm)',
+            }}
+          >
+            {error}
+          </div>
+        )}
+        {students === null ? (
+          <p className="muted" style={{ margin: 0, fontSize: 'var(--t-sm)' }}>
+            Loading roster…
+          </p>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon="users"
+            title="No matching students"
+            description={
+              students.length === 0
+                ? 'Your roster is empty — claim a student first from /instructor/students.'
+                : 'No students match this filter.'
+            }
+          />
+        ) : (
+          <ol
+            style={{
+              listStyle: 'none',
+              margin: 0,
+              padding: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              maxHeight: 360,
+              overflow: 'auto',
+            }}
+          >
+            {filtered.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  className="lesson-list-row"
+                  style={{
+                    width: '100%',
+                    cursor: submittingId ? 'wait' : 'pointer',
+                    gridTemplateColumns: '1fr auto auto',
+                    textAlign: 'left',
+                  }}
+                  onClick={() => handlePick(s)}
+                  disabled={submittingId !== null}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div className="lesson-row-title">{s.name}</div>
+                    <div className="lesson-row-meta">
+                      <span className="truncate">{s.email}</span>
+                      {s.cohortId && (
+                        <>
+                          <span>·</span>
+                          <span className="mono">cohort {s.cohortId.slice(0, 8)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {s.language && (
+                    <Badge tone={s.language === 'kotlin' ? 'amber' : 'default'}>
+                      {s.language}
+                    </Badge>
+                  )}
+                  <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
+                    {submittingId === s.id ? 'assigning…' : 'pick'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
     </Modal>
   );

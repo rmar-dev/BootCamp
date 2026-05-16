@@ -428,63 +428,101 @@ export default function StudentDetailPage() {
                     )}
                   </div>
 
-                  {/* Personal pick — applies to this one student. */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                    <label style={{ fontSize: 'var(--t-xs)', minWidth: 150 }} className="muted">
-                      Personal pick:
-                    </label>
-                    <Select
-                      controlSize="sm"
-                      value={t.studentOverride?.id ?? ''}
-                      onChange={(e) => onSetStudentOverride(t, e.target.value)}
-                      options={[
-                        { value: '', label: 'Use cohort default' },
-                        ...t.availableTrees.map((tree) => ({
-                          value: tree.id,
-                          label: `${tree.name}${tree.visibility === 'private' ? ' (private)' : ''}`,
-                        })),
-                      ]}
-                    />
-                    <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
-                      this student only
-                    </span>
-                    <Link
-                      href={`/instructor/skill-tree?trackId=${encodeURIComponent(t.trackId)}&forStudent=${encodeURIComponent(studentId)}`}
-                      style={{ fontSize: 'var(--t-xs)', textDecoration: 'underline', color: 'inherit' }}
-                      title="Compose a new skill tree and auto-assign it as this student's personal pick"
-                    >
-                      Create new tree for this student →
-                    </Link>
-                    {t.availableTrees.length === 0 && (
-                      <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
-                        No trees authored yet.
-                      </span>
-                    )}
-                  </div>
+                  {/* Per-track tree options. Labels annotate ownership +
+                      visibility so the instructor isn't guessing why a given
+                      row is in the list (or why others are not). */}
+                  {(() => {
+                    const labelFor = (tree: {
+                      name: string;
+                      visibility: 'private' | 'public';
+                      authorUserId: string;
+                    }) => {
+                      const mine = tree.authorUserId === user?.id;
+                      const tag = mine
+                        ? tree.visibility === 'private'
+                          ? 'yours, private'
+                          : 'yours, public'
+                        : 'shared (public)';
+                      return `${tree.name} — ${tag}`;
+                    };
+                    return (
+                      <>
+                        {/* Personal pick — applies to this one student. */}
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                          <label style={{ fontSize: 'var(--t-xs)', minWidth: 150 }} className="muted">
+                            Personal pick:
+                          </label>
+                          <Select
+                            controlSize="sm"
+                            value={t.studentOverride?.id ?? ''}
+                            onChange={(e) => onSetStudentOverride(t, e.target.value)}
+                            options={[
+                              { value: '', label: 'Use cohort default' },
+                              ...t.availableTrees.map((tree) => ({
+                                value: tree.id,
+                                label: labelFor(tree),
+                              })),
+                            ]}
+                          />
+                          <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
+                            this student only
+                          </span>
+                          <Link
+                            href={`/instructor/skill-tree?trackId=${encodeURIComponent(t.trackId)}&forStudent=${encodeURIComponent(studentId)}`}
+                            style={{ fontSize: 'var(--t-xs)', textDecoration: 'underline', color: 'inherit' }}
+                            title="Compose a new skill tree and auto-assign it as this student's personal pick"
+                          >
+                            Create new tree for this student →
+                          </Link>
+                        </div>
 
-                  {/* Cohort default — only when the student is in a cohort. */}
-                  {detail.cohortId && (
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: 'var(--t-xs)', minWidth: 150 }} className="muted">
-                        Cohort default:
-                      </label>
-                      <Select
-                        controlSize="sm"
-                        value={t.activeSkillTree?.id ?? ''}
-                        onChange={(e) => onSwitchTree(t, e.target.value)}
-                        options={[
-                          { value: '', label: 'Use track default' },
-                          ...t.availableTrees.map((tree) => ({
-                            value: tree.id,
-                            label: `${tree.name}${tree.visibility === 'private' ? ' (private)' : ''}`,
-                          })),
-                        ]}
-                      />
-                      <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
-                        every student in this cohort
-                      </span>
-                    </div>
-                  )}
+                        {/* Cohort default — only when the student is in a cohort. */}
+                        {detail.cohortId && (
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                            <label style={{ fontSize: 'var(--t-xs)', minWidth: 150 }} className="muted">
+                              Cohort default:
+                            </label>
+                            <Select
+                              controlSize="sm"
+                              value={t.activeSkillTree?.id ?? ''}
+                              onChange={(e) => onSwitchTree(t, e.target.value)}
+                              options={[
+                                { value: '', label: 'Use track default' },
+                                ...t.availableTrees.map((tree) => ({
+                                  value: tree.id,
+                                  label: labelFor(tree),
+                                })),
+                              ]}
+                            />
+                            <span className="muted" style={{ fontSize: 'var(--t-xs)' }}>
+                              every student in this cohort
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Inventory hint: tells the instructor exactly what's
+                            in the dropdown so a short list isn't mistaken for
+                            a bug. Counts your own trees + public from others. */}
+                        <p className="muted" style={{ margin: '4px 0 0', fontSize: 'var(--t-xs)' }}>
+                          {t.availableTrees.length === 0 ? (
+                            <>
+                              No trees authored for <strong>{t.trackTitle}</strong> yet.
+                              Use the link above to create one.
+                            </>
+                          ) : (
+                            <>
+                              Listing{' '}
+                              <strong>{t.availableTrees.length}</strong>{' '}
+                              tree{t.availableTrees.length === 1 ? '' : 's'} scoped to{' '}
+                              <strong>{t.trackTitle}</strong> (your own + public trees
+                              from other instructors). Private trees from others are
+                              not visible.
+                            </>
+                          )}
+                        </p>
+                      </>
+                    );
+                  })()}
                 </li>
               );
             })}
