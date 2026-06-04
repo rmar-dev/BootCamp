@@ -29,6 +29,12 @@ export class AdminService {
    * against accidentally removing the last/only admin's access. Cross-user
    * role changes (including granting admin) are allowed for an admin caller;
    * the controller's @Roles('admin') is what restricts this to admins.
+   *
+   * NOTE: the target's role lives in their JWT, which is short-lived (15-min
+   * access token). The DB changes immediately, but a demoted user keeps their
+   * old role until their access token expires and `refresh` re-reads the role
+   * from the DB. Do not lengthen the access-token TTL without adding a
+   * token-version invalidation scheme, or role changes will propagate slowly.
    */
   async changeRole(targetUserId: string, role: UserRole, callerUserId: string): Promise<AdminUserView> {
     if (targetUserId === callerUserId) {
