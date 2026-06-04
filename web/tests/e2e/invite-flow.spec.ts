@@ -33,8 +33,8 @@ test.describe('Invite-only flow', () => {
 
     // --- 2. Invite an instructor from /admin --------------------------------
     await page.goto('/admin');
-    await page.getByPlaceholder('Instructor name').fill('E2E Instructor');
-    await page.getByPlaceholder('instructor@example.com').fill(instructorEmail);
+    await page.getByPlaceholder('Full name').fill('E2E Instructor');
+    await page.getByPlaceholder('name@example.com').fill(instructorEmail);
     await page.getByRole('button', { name: /create invitation/i }).click();
 
     // The InvitationCard exposes the link via aria-label="Magic link".

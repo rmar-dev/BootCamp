@@ -12,6 +12,7 @@ export function Sidebar() {
   const { user } = useAuth();
   const pathname = usePathname() ?? '';
   const isInstructor = user?.role === 'instructor' || user?.role === 'admin';
+  const isAdmin = user?.role === 'admin';
   return (
     <aside className="side">
       <div style={{ padding: '0 4px 12px' }}><Logo size="sm" /></div>
@@ -86,6 +87,24 @@ export function Sidebar() {
             label="Design system ↗"
             href="/design-system"
             active={pathname === '/design-system'}
+          />
+        </>
+      )}
+
+      {isAdmin && (
+        <>
+          <div className="side-section">Admin</div>
+          <SidebarNavItem
+            icon="user"
+            label="Invite"
+            href="/admin"
+            active={pathname === '/admin'}
+          />
+          <SidebarNavItem
+            icon="grid"
+            label="Users"
+            href="/admin/users"
+            active={pathname.startsWith('/admin/users')}
           />
         </>
       )}
