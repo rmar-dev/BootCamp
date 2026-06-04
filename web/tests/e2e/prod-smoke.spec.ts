@@ -43,12 +43,13 @@ test.describe('Prod smoke — public surface', () => {
     await expect(page.getByRole('button', { name: /^sign in$/i })).toBeVisible();
   });
 
-  test('/register renders the form', async ({ page }) => {
+  test('/register is gone (invite-only auth)', async ({ page }) => {
+    // Registration is invite-only — the public /register page was removed.
+    // A missing route renders Next's 404 in prod, so the old create-account
+    // form must not appear.
     await page.goto('/register');
-    await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible();
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/name/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /create your account/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /create account/i })).toHaveCount(0);
   });
 
   test('login form rejects invalid credentials with an inline error', async ({ page }) => {

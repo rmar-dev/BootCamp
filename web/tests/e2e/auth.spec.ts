@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { SEED, tryLoginAs } from './_helpers';
+import { tryLoginAs } from './_helpers';
 
-// Covers login + register + signout. Every test that needs the backend will
-// skip cleanly if it can't reach it — these run as part of the suite even
-// when only the web app is up (the skipped count tells you to start
-// platform/seed).
+// Covers login + signout. Registration is invite-only — there is no public
+// /register route anymore (see invite-flow.spec.ts for the invite path).
+// Every test that needs the backend will skip cleanly if it can't reach it —
+// these run as part of the suite even when only the web app is up (the
+// skipped count tells you to start platform/seed).
 
 test.describe('Login page', () => {
   test('renders the form (unauthenticated landing path)', async ({ page }) => {
@@ -56,47 +57,30 @@ test.describe('Login page', () => {
   });
 });
 
-test.describe('Register page', () => {
-  test('renders the form', async ({ page }) => {
+test.describe('Register route (removed — invite-only)', () => {
+  test('/register does NOT render a registration form', async ({ page }) => {
+    // Registration is invite-only now: POST /api/auth/register and the
+    // /register page were removed. In Next.js a missing route renders the
+    // 404 page, so the old register form must be absent. This check is
+    // backend-independent (it asserts on the absence of UI, not on any API).
     await page.goto('/register');
-    await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible();
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/name/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /create account/i })).toBeVisible();
-  });
 
-  test('creates a new account and redirects to the app', async ({ page }, testInfo) => {
-    // Random email each run so the test is repeatable.
-    const email = `e2e-${Date.now()}-${Math.floor(Math.random() * 1e6)}@bootcamp.test`;
-    await page.goto('/register');
-    await page.getByLabel(/email/i).fill(email);
-    await page.getByLabel(/name/i).fill('E2E Runner');
-    await page.getByLabel(/password/i).fill('test1234password');
-    await page.getByRole('button', { name: /create account/i }).click();
-    try {
-      await page.waitForURL((url) => !url.pathname.startsWith('/register'), { timeout: 8_000 });
-    } catch {
-      testInfo.skip(true, 'Backend unreachable — register POST never resolved');
-    }
-    // Root (/) redirects authed users to /tracks; some envs may send them to /dashboard.
-    expect(page.url()).toMatch(/\/(tracks|dashboard|$)/);
-  });
+    // None of the old register form's fields should exist.
+    await expect(
+      page.getByRole('heading', { name: /create your account/i }),
+    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /create account/i })).toHaveCount(0);
+    await expect(page.getByLabel(/^name$/i)).toHaveCount(0);
 
-  test('rejects duplicate email with an inline error', async ({ page }, testInfo) => {
-    await page.goto('/register');
-    await page.getByLabel(/email/i).fill(SEED.student.email);
-    await page.getByLabel(/name/i).fill('Already Taken');
-    await page.getByLabel(/password/i).fill('test1234password');
-    await page.getByRole('button', { name: /create account/i }).click();
-    const alert = page.getByRole('alert');
-    try {
-      await expect(alert).toBeVisible({ timeout: 5_000 });
-    } catch {
-      testInfo.skip(true, 'Backend unreachable or seed not applied — duplicate-email error never rendered');
-    }
-    // We don't lock the exact text — different platforms phrase the conflict
-    // differently. Visibility of the alert region is enough.
-    expect(page.url()).toMatch(/\/register$/);
+    // It should look like Next's not-found page (or otherwise clearly not a
+    // working register form). Tolerate either the framework 404 text or a
+    // redirect away from /register.
+    const looks404 = await page
+      .getByText(/this page could not be found|404|not found/i)
+      .first()
+      .isVisible()
+      .catch(() => false);
+    const redirectedAway = !new URL(page.url()).pathname.startsWith('/register');
+    expect(looks404 || redirectedAway).toBeTruthy();
   });
 });
