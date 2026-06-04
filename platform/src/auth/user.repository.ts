@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { User, UserRole } from '@prisma/client';
+import { User, UserRole, UserStatus } from '@prisma/client';
 
 export interface CreateUserInput {
   id: string;
@@ -9,6 +9,7 @@ export interface CreateUserInput {
   passwordHash?: string;
   role: UserRole;
   googleId?: string;
+  status?: UserStatus;
 }
 
 @Injectable()
@@ -24,6 +25,7 @@ export class UserRepository {
         passwordHash: input.passwordHash ?? null,
         role: input.role,
         googleId: input.googleId ?? null,
+        status: input.status ?? 'active',
       },
     });
   }
@@ -42,5 +44,17 @@ export class UserRepository {
 
   update(id: string, data: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User> {
     return this.prisma.user.update({ where: { id }, data });
+  }
+
+  /** Set the password hash and flip an invited user to active. */
+  activate(id: string, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash, status: 'active' },
+    });
+  }
+
+  setStatus(id: string, status: UserStatus): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { status } });
   }
 }
