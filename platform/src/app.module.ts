@@ -17,8 +17,9 @@ import { ProgressModule } from './progress/progress.module';
 import { ReviewQueueModule } from './review-queue/review-queue.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { InvitationsModule } from './invitations/invitations.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
-  imports: [PrismaModule, ContentModule, StateModule, ExecutionModule, AuthModule, SubmissionModule, GamificationModule, ReviewModule, InstructorReviewModule, InstructorContentModule, HelpModule, RatingsModule, StudentsModule, SkillTreeModule, ProgressModule, ReviewQueueModule, FeedbackModule, InvitationsModule],
+  imports: [PrismaModule, ContentModule, StateModule, ExecutionModule, AuthModule, SubmissionModule, GamificationModule, ReviewModule, InstructorReviewModule, InstructorContentModule, HelpModule, RatingsModule, StudentsModule, SkillTreeModule, ProgressModule, ReviewQueueModule, FeedbackModule, InvitationsModule, AdminModule],
 })
 export class AppModule {}

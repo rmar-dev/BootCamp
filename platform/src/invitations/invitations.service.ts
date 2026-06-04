@@ -37,6 +37,12 @@ export class InvitationsService {
    * themselves); only an admin may mint `instructor`/`admin`.
    */
   async issue(input: IssueInput, caller: Caller): Promise<IssueResult> {
+    // SECURITY: this line is the SOLE privilege gate on the granted role. A
+    // non-admin caller (instructor) is always forced to `student`, no matter
+    // what `input.role` the request body carried — the controller's
+    // @Roles('instructor','admin') lets instructors reach here, so the
+    // downgrade MUST stay. Covered by invitations.service.spec ("instructor
+    // cannot mint an instructor"). Do not move role-granting elsewhere.
     const grantedRole: UserRole =
       caller.role === 'admin' ? input.role : UserRole.student;
 
