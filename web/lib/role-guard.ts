@@ -45,3 +45,30 @@ export async function requireInstructor(): Promise<UserResponse> {
   }
   return user;
 }
+
+/**
+ * Server-side gate for any /admin/* route. Same mechanics as requireInstructor
+ * but admin-only: an instructor or student that types /admin into the URL is
+ * redirected to /dashboard before the page renders.
+ */
+export async function requireAdmin(): Promise<UserResponse> {
+  const cookieHeader = cookies().toString();
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api/auth/me`, {
+      cache: 'no-store',
+      headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
+      signal: AbortSignal.timeout(2000),
+    });
+  } catch {
+    redirect('/login');
+  }
+  if (!res.ok) redirect('/login');
+  const json = await res.json().catch(() => null);
+  const user: UserResponse | null = json?.user ?? null;
+  if (!user) redirect('/login');
+  if (user.role !== 'admin') {
+    redirect('/dashboard');
+  }
+  return user;
+}
