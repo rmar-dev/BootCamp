@@ -23,6 +23,7 @@ function makeMockRepo(): UserRepository {
         passwordHash: input.passwordHash ?? null,
         role: input.role,
         googleId: input.googleId ?? null,
+        status: input.status ?? 'active',
         createdAt: new Date(),
       };
       store.set(user.id, user);

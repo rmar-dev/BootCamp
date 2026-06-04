@@ -146,6 +146,19 @@ enum UserRole {
   admin
 }
 
+enum UserStatus {
+  invited
+  active
+  disabled
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
 enum DifficultyBaseline {
   easy
   standard
@@ -178,14 +191,33 @@ enum FeedbackStatus {
 }
 
 model User {
-  id           String   @id @db.Uuid
-  email        String   @unique
+  id           String     @id @db.Uuid
+  email        String     @unique
   name         String
   passwordHash String?
-  role         UserRole @default(student)
-  googleId     String?  @unique
-  createdAt    DateTime @default(now())
+  role         UserRole   @default(student)
+  googleId     String?    @unique
+  status       UserStatus @default(active)
+  createdAt    DateTime   @default(now())
   student      Student?
+  invitations  Invitation[]
+}
+
+model Invitation {
+  id          String           @id @db.Uuid
+  email       String
+  userId      String           @db.Uuid
+  user        User             @relation(fields: [userId], references: [id])
+  invitedById String           @db.Uuid
+  role        UserRole
+  tokenHash   String           @unique
+  status      InvitationStatus @default(pending)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([userId])
+  @@index([invitedById])
 }
 
 model Student {
@@ -597,4 +629,64 @@ model StudentTrackAssignment {
   @@id([studentId, trackId])
   @@index([skillTreeId])
   @@index([trackId])
+}
+
+// =====================
+// Knowledge / RAG layer
+// =====================
+
+enum KnowledgeSourceType {
+  curriculum
+  idiom
+  reference_solution
+  common_mistake
+}
+
+model ReferenceSolution {
+  id                String    @db.Uuid
+  version           Int
+  exerciseId        String    @db.Uuid
+  language          Language
+  code              String
+  rationaleMarkdown String
+  rubricMarkdown    String?
+  publishedAt       DateTime?
+  contentHash       String?
+
+  @@id([id, version])
+  @@index([exerciseId])
+}
+
+model CommonMistake {
+  id                  String    @db.Uuid
+  version             Int
+  language            Language
+  concepts            String[]
+  title               String
+  badPattern          String
+  goodPattern         String
+  explanationMarkdown String
+  sourceExerciseId    String?   @db.Uuid
+  publishedAt         DateTime?
+  contentHash         String?
+
+  @@id([id, version])
+  @@index([language])
+}
+
+model KnowledgeChunk {
+  id          String              @id @default(uuid()) @db.Uuid
+  sourceType  KnowledgeSourceType
+  sourceId    String
+  language    Language
+  concepts    String[]
+  heading     String
+  text        String
+  // embedding vector(768) is added by raw migration in Task 2 (Prisma has no native vector type)
+  contentHash String
+  indexedAt   DateTime            @default(now())
+
+  @@unique([sourceType, sourceId, contentHash])
+  @@index([sourceType])
+  @@index([language])
 }
