@@ -75,6 +75,7 @@ export const config = {
     '/badges/:path*',
     '/instructor/:path*',
     '/review/:path*',
+    '/admin/:path*',
   ],
 };
 

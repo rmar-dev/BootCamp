@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/layout/AuthProvider';
 import {
@@ -10,6 +10,8 @@ import {
   type RosterEntry,
   type Student,
 } from '@/lib/students';
+import { createInvitation } from '@/lib/invitations';
+import { InvitationCard } from '@/components/invitations/InvitationCard';
 import {
   Badge,
   Button,
@@ -29,6 +31,12 @@ export default function StudentsRosterPage() {
   const [unassigned, setUnassigned] = useState<Student[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteIssued, setInviteIssued] = useState<{ link: string; email: string; name: string; expiresAt: string } | null>(null);
+  const [inviteError, setInviteError] = useState('');
+  const [inviting, setInviting] = useState(false);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -76,6 +84,32 @@ export default function StudentsRosterPage() {
     [refresh],
   );
 
+  const onInvite = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      setInviteError('');
+      setInviting(true);
+      try {
+        const res = await createInvitation(inviteEmail, inviteName, 'student');
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        setInviteIssued({
+          link: `${origin}${res.acceptUrlPath}`,
+          email: inviteEmail,
+          name: inviteName,
+          expiresAt: res.invitation.expiresAt,
+        });
+        setInviteEmail('');
+        setInviteName('');
+        await refresh();
+      } catch (err) {
+        setInviteError(err instanceof Error ? err.message : 'Could not create invitation');
+      } finally {
+        setInviting(false);
+      }
+    },
+    [inviteEmail, inviteName, refresh],
+  );
+
   const totalOpenHelp = useMemo(
     () => assigned.reduce((acc, s) => acc + s.openHelpRequestCount, 0),
     [assigned],
@@ -99,6 +133,26 @@ export default function StudentsRosterPage() {
           {assigned.length} assigned · {totalOpenHelp} open help request{totalOpenHelp === 1 ? '' : 's'} · {unassigned.length} unassigned
         </p>
       </header>
+
+      <section className="mb-6 space-y-3">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Invite a student</h2>
+        <form onSubmit={onInvite} className="space-y-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+          <input type="text" required placeholder="Student name" value={inviteName}
+            onChange={(e) => setInviteName(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100" />
+          <input type="email" required placeholder="student@example.com" value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100" />
+          {inviteError && <p role="alert" className="text-xs text-red-600">{inviteError}</p>}
+          <button type="submit" disabled={inviting}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300">
+            {inviting ? 'Creating…' : 'Create invitation'}
+          </button>
+        </form>
+        {inviteIssued && (
+          <InvitationCard email={inviteIssued.email} name={inviteIssued.name} link={inviteIssued.link} expiresAt={inviteIssued.expiresAt} />
+        )}
+      </section>
 
       <div style={{ display: 'inline-flex', gap: 4, marginBottom: 16 }}>
         <Button variant={tab === 'assigned' ? 'primary' : 'ghost'} size="sm" onClick={() => setTab('assigned')}>

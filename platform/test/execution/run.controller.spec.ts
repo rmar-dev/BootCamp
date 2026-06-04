@@ -8,6 +8,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { ExerciseRepository } from '../../src/content/repositories/exercise.repository';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 const mockDockerResult = {
   stdout: '',
@@ -57,14 +58,10 @@ describe('RunController (e2e)', () => {
     mockDockerRun.mockResolvedValue(mockDockerResult);
   });
 
-  /** Register a user and return the bc.access cookie value */
+  /** Seed an active user and return the bc.access cookie value */
   async function getAuthCookie(): Promise<string> {
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: `user-${newId()}@test.com`, name: 'Tester', password: 'password123' });
-    const raw = res.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    return arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie } = await createUserAndLogin(app, prisma);
+    return cookie;
   }
 
   it('POST /api/run returns 401 without auth token', async () => {

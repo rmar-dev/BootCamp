@@ -7,6 +7,7 @@ import { DockerRunner } from '../../src/execution/docker-runner';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 describe('ProgressController (e2e)', () => {
   let app: INestApplication;
@@ -37,15 +38,7 @@ describe('ProgressController (e2e)', () => {
   });
 
   async function registerAndGetCookie(): Promise<{ cookie: string; userId: string; studentId: string }> {
-    const userEmail = `user-${newId()}@test.com`;
-    const password = 'password123';
-    const regRes = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: userEmail, name: 'Tester', password });
-    const userId: string = regRes.body.user.id;
-    const raw = regRes.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie, userId } = await createUserAndLogin(app, prisma);
 
     // Create the Student record linked to this user
     const studentId = newId();
@@ -154,14 +147,8 @@ describe('ProgressController (e2e)', () => {
     });
 
     it('returns empty lessons when caller has no Student record', async () => {
-      // Register a user but do NOT create a Student linked to them
-      const userEmail = `user-${newId()}@test.com`;
-      const regRes = await request(app.getHttpServer())
-        .post('/api/auth/register')
-        .send({ email: userEmail, name: 'Tester', password: 'password123' });
-      const raw = regRes.headers['set-cookie'] as string | string[];
-      const arr = Array.isArray(raw) ? raw : [raw];
-      const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
+      // Seed a user but do NOT create a Student linked to them
+      const { cookie } = await createUserAndLogin(app, prisma);
 
       const { trackId } = await seedTrackWithOneLesson();
 

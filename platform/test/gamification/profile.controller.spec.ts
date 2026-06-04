@@ -7,6 +7,7 @@ import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 describe('GET /api/profile/me', () => {
   let app: INestApplication;
@@ -29,16 +30,8 @@ describe('GET /api/profile/me', () => {
   });
 
   async function getAuthCookie(): Promise<string> {
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({
-        email: `u-${newId()}@test.com`,
-        name: 'U',
-        password: 'password123',
-      });
-    const raw = res.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    return arr.find((c) => c.startsWith('bc.access='))!;
+    const { cookie } = await createUserAndLogin(app, prisma, { name: 'U' });
+    return cookie;
   }
 
   it('returns the full ProfileResponse for the authenticated student', async () => {

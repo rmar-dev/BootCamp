@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Language, Student } from '@prisma/client';
+import { Language, Prisma, Student } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export type CreateStudentInput = {
@@ -8,20 +8,22 @@ export type CreateStudentInput = {
   email: string;
   cohortId?: string | null;
   userId?: string | null;
+  instructorId?: string | null;
 };
 
 @Injectable()
 export class StudentRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(input: CreateStudentInput): Promise<Student> {
-    return this.prisma.student.create({
+  async create(input: CreateStudentInput, tx?: Prisma.TransactionClient): Promise<Student> {
+    return (tx ?? this.prisma).student.create({
       data: {
         id: input.id,
         name: input.name,
         email: input.email,
         cohortId: input.cohortId ?? null,
         userId: input.userId ?? null,
+        instructorId: input.instructorId ?? null,
       },
     });
   }

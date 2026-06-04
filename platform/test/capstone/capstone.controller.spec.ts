@@ -7,6 +7,7 @@ import { DockerRunner } from '../../src/execution/docker-runner';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 describe('Capstone Submission & Approval (e2e)', () => {
   let app: INestApplication;
@@ -37,42 +38,17 @@ describe('Capstone Submission & Approval (e2e)', () => {
   });
 
   /**
-   * Register a user and return cookie + userId.
-   * For instructor role: register, update role in DB, re-login to get fresh JWT.
+   * Seed a user with the requested role and return cookie + userId.
+   * The seeded login JWT already carries the role, so no re-login is needed.
    */
   async function registerAndGetCookie(opts?: {
     email?: string;
     role?: 'student' | 'instructor';
   }): Promise<{ cookie: string; userId: string }> {
-    const role = opts?.role ?? 'student';
-    const userEmail = opts?.email ?? `user-${newId()}@test.com`;
-    const password = 'password123';
-
-    const regRes = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: userEmail, name: 'Tester', password });
-
-    const userId: string = regRes.body.user.id;
-
-    if (role === 'instructor') {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { role: 'instructor' },
-      });
-
-      const loginRes = await request(app.getHttpServer())
-        .post('/api/auth/login')
-        .send({ email: userEmail, password });
-
-      const raw = loginRes.headers['set-cookie'] as string | string[];
-      const arr = Array.isArray(raw) ? raw : [raw];
-      const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
-      return { cookie, userId };
-    }
-
-    const raw = regRes.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie, userId } = await createUserAndLogin(app, prisma, {
+      email: opts?.email,
+      role: opts?.role ?? 'student',
+    });
     return { cookie, userId };
   }
 

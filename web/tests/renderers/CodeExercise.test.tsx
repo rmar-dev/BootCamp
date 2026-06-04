@@ -14,7 +14,7 @@ vi.mock('@/lib/submit', () => ({
 }));
 import { submitExercise } from '@/lib/submit';
 
-const loggedInUser = { id: '1', email: 'a@b.com', name: 'A', role: 'student' as const, googleId: null, createdAt: '' };
+const loggedInUser = { id: '1', email: 'a@b.com', name: 'A', role: 'student' as const, status: 'active' as const, googleId: null, createdAt: '' };
 const mockSetTotalPoints = vi.fn();
 
 vi.mock('@/components/layout/AuthProvider', () => ({

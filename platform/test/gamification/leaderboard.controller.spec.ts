@@ -7,6 +7,7 @@ import { DockerRunner } from '../../src/execution/docker-runner';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 describe('LeaderboardController (e2e)', () => {
   let app: INestApplication;
@@ -37,16 +38,8 @@ describe('LeaderboardController (e2e)', () => {
   });
 
   async function getAuthCookie(email?: string): Promise<string> {
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({
-        email: email ?? `user-${newId()}@test.com`,
-        name: 'Tester',
-        password: 'password123',
-      });
-    const raw = res.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    return arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie } = await createUserAndLogin(app, prisma, { email });
+    return cookie;
   }
 
   it('GET /api/leaderboard returns ranked list of students', async () => {

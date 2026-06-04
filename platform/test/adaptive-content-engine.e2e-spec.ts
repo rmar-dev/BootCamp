@@ -8,6 +8,7 @@ import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { newId } from '../src/shared/ids';
+import { createUserAndLogin } from './helpers/auth';
 
 // ---------------------------------------------------------------------------
 // Shared MC payload used for all exercise fixtures
@@ -60,16 +61,13 @@ async function createStudent(
   cohortId: string | null,
 ): Promise<StudentFixture> {
   const email = `student-${newId()}@test.com`;
-  const res = await request(app.getHttpServer())
-    .post('/api/auth/register')
-    .send({ email, name: 'E2E Student', password: 'password123' });
-
-  const raw = res.headers['set-cookie'] as string | string[];
-  const arr = Array.isArray(raw) ? raw : [raw];
-  const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
+  const { cookie } = await createUserAndLogin(app, prisma, {
+    email,
+    name: 'E2E Student',
+  });
 
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new Error('User not found after registration');
+  if (!user) throw new Error('User not found after seeding');
 
   // Upsert a Student row linked to this User via userId (Student.id is a
   // separate UUID — the controllers now resolve User.id → Student.id via
