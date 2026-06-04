@@ -1,8 +1,7 @@
 'use client';
 import { useState, type FormEvent } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { login, googleLoginUrl } from '@/lib/auth';
+import { login } from '@/lib/auth';
 import { useAuth } from '@/components/layout/AuthProvider';
 
 const isDev = process.env.NODE_ENV !== 'production';
@@ -55,22 +54,6 @@ export default function LoginPage() {
           <h1 className="mt-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
             Sign in to BootCamp
           </h1>
-        </div>
-
-        <a
-          href={googleLoginUrl()}
-          className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-        >
-          Sign in with Google
-        </a>
-
-        <div className="relative my-4">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200 dark:border-gray-700" />
-          </div>
-          <div className="relative flex justify-center text-xs text-gray-400">
-            <span className="bg-white px-2 dark:bg-gray-900">or</span>
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -126,16 +109,6 @@ export default function LoginPage() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
-          No account?{' '}
-          <Link
-            href="/register"
-            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-          >
-            Create one
-          </Link>
-        </p>
 
         <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
           <p className="mb-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">

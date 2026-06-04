@@ -11,7 +11,6 @@ vi.mock('next/navigation', () => ({
 const mockLogin = vi.fn();
 vi.mock('@/lib/auth', () => ({
   login: (...args: unknown[]) => mockLogin(...args),
-  googleLoginUrl: () => 'http://localhost:3000/api/auth/google',
 }));
 
 const mockRefresh = vi.fn();

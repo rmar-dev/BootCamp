@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { login, register, fetchMe, logout } from '@/lib/auth';
+import { login, fetchMe } from '@/lib/auth';
 
 const mockUser = {
   id: '1',
@@ -38,23 +38,6 @@ describe('login', () => {
     } as Response);
 
     await expect(login('alice@example.com', 'wrong')).rejects.toThrow('invalid_credentials');
-  });
-});
-
-describe('register', () => {
-  it('returns user on 201', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      status: 201,
-      json: async () => ({ user: mockUser }),
-    } as Response);
-
-    const user = await register('alice@example.com', 'Alice', 'secret');
-    expect(user).toEqual(mockUser);
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/auth/register'),
-      expect.objectContaining({ method: 'POST', credentials: 'include' }),
-    );
   });
 });
 
