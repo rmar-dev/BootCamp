@@ -64,4 +64,12 @@ export class UserRepository {
   setStatus(id: string, status: UserStatus, tx?: Prisma.TransactionClient): Promise<User> {
     return (tx ?? this.prisma).user.update({ where: { id }, data: { status } });
   }
+
+  findAll(): Promise<User[]> {
+    return this.prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
+  }
+
+  setRole(id: string, role: UserRole): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { role } });
+  }
 }
