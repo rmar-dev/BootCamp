@@ -8,6 +8,7 @@ export type CreateStudentInput = {
   email: string;
   cohortId?: string | null;
   userId?: string | null;
+  instructorId?: string | null;
 };
 
 @Injectable()
@@ -22,6 +23,7 @@ export class StudentRepository {
         email: input.email,
         cohortId: input.cohortId ?? null,
         userId: input.userId ?? null,
+        instructorId: input.instructorId ?? null,
       },
     });
   }
