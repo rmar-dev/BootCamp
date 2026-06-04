@@ -10,25 +10,11 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { IsEmail, IsString, MinLength } from 'class-validator';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-
-class RegisterDto {
-  @IsEmail()
-  email: string;
-
-  @IsString()
-  @MinLength(1)
-  name: string;
-
-  @IsString()
-  @MinLength(8)
-  password: string;
-}
 
 class LoginDto {
   @IsEmail()
@@ -36,6 +22,16 @@ class LoginDto {
 
   @IsString()
   @MinLength(1)
+  password: string;
+}
+
+class AcceptInviteDto {
+  @IsString()
+  @MinLength(1)
+  token: string;
+
+  @IsString()
+  @MinLength(8)
   password: string;
 }
 
@@ -72,10 +68,11 @@ function clearAuthCookies(res: Response): void {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('register')
+  @Post('accept-invite')
+  @HttpCode(201)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.authService.register(dto.email, dto.name, dto.password);
+  async acceptInvite(@Body() dto: AcceptInviteDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.acceptInvite(dto.token, dto.password);
     setAuthCookies(res, result.accessToken, result.refreshToken);
     return { user: result.user };
   }
@@ -120,20 +117,6 @@ export class AuthController {
 
   @Get('providers')
   providers() {
-    return { google: !!process.env.GOOGLE_CLIENT_ID };
-  }
-
-  @Get('google')
-  @UseGuards(AuthGuard('google'))
-  googleAuth() {
-    // Passport redirects to Google
-  }
-
-  @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
-  async googleCallback(@Req() req: Request, @Res() res: Response) {
-    const result = req.user as any;
-    setAuthCookies(res, result.accessToken, result.refreshToken);
-    return res.redirect(process.env.FRONTEND_URL ?? 'http://localhost:3001');
+    return { google: false };
   }
 }

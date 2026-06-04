@@ -2,9 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
+import * as bcrypt from 'bcryptjs';
 import { AppModule } from '../../src/app.module';
 import { DockerRunner } from '../../src/execution/docker-runner';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { newId } from '../../src/shared/ids';
 import { resetDb } from '../helpers/db';
 
 describe('AuthController (e2e)', () => {
@@ -23,7 +25,6 @@ describe('AuthController (e2e)', () => {
     app.use(cookieParser());
     app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
     await app.init();
-
     prisma = moduleFixture.get(PrismaService);
   });
 
@@ -35,56 +36,64 @@ describe('AuthController (e2e)', () => {
     await resetDb(prisma);
   });
 
-  function registerUser(email = 'alice@test.com', password = 'password123') {
-    return request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email, name: 'Alice', password });
+  async function seedUser(
+    email = 'alice@test.com',
+    password = 'password123',
+    status: 'active' | 'invited' | 'disabled' = 'active',
+    role: 'student' | 'instructor' | 'admin' = 'instructor',
+  ) {
+    await prisma.user.create({
+      data: {
+        id: newId(),
+        email,
+        name: 'Alice',
+        passwordHash: await bcrypt.hash(password, 10),
+        role,
+        status,
+      },
+    });
   }
 
-  it('POST /api/auth/register returns 201 and sets cookies', async () => {
-    const res = await registerUser().expect(201);
-    expect(res.body.user.email).toBe('alice@test.com');
-    const cookies = res.headers['set-cookie'] as string | string[];
-    const cookieArr = Array.isArray(cookies) ? cookies : [cookies];
-    expect(cookieArr).toBeDefined();
-    expect(cookieArr.some((c: string) => c.startsWith('bc.access='))).toBe(true);
-    expect(cookieArr.some((c: string) => c.startsWith('bc.refresh='))).toBe(true);
-  });
+  function login(email = 'alice@test.com', password = 'password123') {
+    return request(app.getHttpServer()).post('/api/auth/login').send({ email, password });
+  }
 
-  it('POST /api/auth/register returns 409 on duplicate email', async () => {
-    await registerUser().expect(201);
-    await registerUser().expect(409);
-  });
-
-  it('POST /api/auth/login returns 200 with valid credentials', async () => {
-    await registerUser().expect(201);
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'alice@test.com', password: 'password123' })
-      .expect(200);
+  it('POST /api/auth/login returns 200 and sets cookies for an active user', async () => {
+    await seedUser();
+    const res = await login().expect(200);
     expect(res.body.user.email).toBe('alice@test.com');
+    const cookies = res.headers['set-cookie'] as unknown as string[];
+    const arr = Array.isArray(cookies) ? cookies : [cookies];
+    expect(arr.some((c) => c.startsWith('bc.access='))).toBe(true);
+    expect(arr.some((c) => c.startsWith('bc.refresh='))).toBe(true);
   });
 
   it('POST /api/auth/login returns 401 on wrong password', async () => {
-    await registerUser().expect(201);
-    await request(app.getHttpServer())
-      .post('/api/auth/login')
-      .send({ email: 'alice@test.com', password: 'wrongpass' })
-      .expect(401);
+    await seedUser();
+    await login('alice@test.com', 'wrongpass').expect(401);
+  });
+
+  it('POST /api/auth/login returns 401 for an invited (not activated) user', async () => {
+    await seedUser('pending@test.com', 'password123', 'invited');
+    await login('pending@test.com', 'password123').expect(401);
+  });
+
+  it('POST /api/auth/login returns 401 for a disabled user', async () => {
+    await seedUser('dis@test.com', 'password123', 'disabled');
+    await login('dis@test.com', 'password123').expect(401);
   });
 
   it('GET /api/auth/me returns 200 when authed', async () => {
-    const regRes = await registerUser().expect(201);
-    const rawCookies = regRes.headers['set-cookie'] as string | string[];
-    const cookieArr = Array.isArray(rawCookies) ? rawCookies : [rawCookies];
-    const accessCookie = cookieArr.find((c: string) => c.startsWith('bc.access='))!;
-
-    const res = await request(app.getHttpServer())
+    await seedUser();
+    const res = await login().expect(200);
+    const raw = res.headers['set-cookie'] as unknown as string[];
+    const arr = Array.isArray(raw) ? raw : [raw];
+    const accessCookie = arr.find((c) => c.startsWith('bc.access='))!;
+    const me = await request(app.getHttpServer())
       .get('/api/auth/me')
       .set('Cookie', accessCookie)
       .expect(200);
-
-    expect(res.body.user.email).toBe('alice@test.com');
+    expect(me.body.user.email).toBe('alice@test.com');
   });
 
   it('GET /api/auth/me returns 401 without token', async () => {
@@ -92,32 +101,42 @@ describe('AuthController (e2e)', () => {
   });
 
   it('POST /api/auth/logout returns 200 and clears cookies', async () => {
-    const regRes = await registerUser().expect(201);
-    const rawCookies = regRes.headers['set-cookie'] as string | string[];
-    const cookieArr = Array.isArray(rawCookies) ? rawCookies : [rawCookies];
-    const accessCookie = cookieArr.find((c: string) => c.startsWith('bc.access='))!;
-
-    const res = await request(app.getHttpServer())
+    await seedUser();
+    const res = await login().expect(200);
+    const raw = res.headers['set-cookie'] as unknown as string[];
+    const arr = Array.isArray(raw) ? raw : [raw];
+    const accessCookie = arr.find((c) => c.startsWith('bc.access='))!;
+    const out = await request(app.getHttpServer())
       .post('/api/auth/logout')
       .set('Cookie', accessCookie)
       .expect(200);
-
-    const rawSetCookies = res.headers['set-cookie'];
-    const setCookies: string[] = rawSetCookies
-      ? Array.isArray(rawSetCookies)
-        ? rawSetCookies
-        : [rawSetCookies]
-      : [];
-    // Cookies should be cleared (expired)
-    const accessCleared = setCookies.some(
-      (c: string) => c.startsWith('bc.access=') && c.includes('Expires=Thu, 01 Jan 1970'),
-    );
-    expect(accessCleared).toBe(true);
+    const rawSet = out.headers['set-cookie'] as unknown as string[];
+    const setArr = rawSet ? (Array.isArray(rawSet) ? rawSet : [rawSet]) : [];
+    expect(
+      setArr.some((c) => c.startsWith('bc.access=') && c.includes('Expires=Thu, 01 Jan 1970')),
+    ).toBe(true);
   });
 
-  it('GET /api/auth/providers returns google boolean', async () => {
+  it('GET /api/auth/providers reports google: false', async () => {
     const res = await request(app.getHttpServer()).get('/api/auth/providers').expect(200);
-    expect(res.body).toHaveProperty('google');
-    expect(typeof res.body.google).toBe('boolean');
+    expect(res.body.google).toBe(false);
+  });
+
+  it('removed: POST /api/auth/register returns 404', async () => {
+    await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: 'x@test.com', name: 'X', password: 'password123' })
+      .expect(404);
+  });
+
+  it('removed: GET /api/auth/google returns 404', async () => {
+    await request(app.getHttpServer()).get('/api/auth/google').expect(404);
+  });
+
+  it('POST /api/auth/accept-invite with a bad token returns 400', async () => {
+    await request(app.getHttpServer())
+      .post('/api/auth/accept-invite')
+      .send({ token: 'deadbeef', password: 'newpass123' })
+      .expect(400);
   });
 });

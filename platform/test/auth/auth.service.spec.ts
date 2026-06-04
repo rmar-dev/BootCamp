@@ -1,144 +1,189 @@
-import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
+import * as jwt from 'jsonwebtoken';
 import { AuthService } from '../../src/auth/auth.service';
-import { UserRepository } from '../../src/auth/user.repository';
-import { User } from '@prisma/client';
-import { newId } from '../../src/shared/ids';
+import { hashInviteToken } from '../../src/invitations/invitation.token';
 
-// In-memory mock UserRepository
-function makeMockRepo(): UserRepository {
-  const store = new Map<string, User>();
-
+function makeUsers() {
+  const store = new Map<string, any>();
   return {
-    async create(input: any): Promise<User> {
-      if ([...store.values()].some(u => u.email === input.email)) {
-        throw { code: 'P2002' };
-      }
-      if (input.googleId && [...store.values()].some(u => u.googleId === input.googleId)) {
-        throw { code: 'P2002' };
-      }
-      const user: User = {
-        id: input.id,
-        email: input.email,
-        name: input.name,
-        passwordHash: input.passwordHash ?? null,
-        role: input.role,
-        googleId: input.googleId ?? null,
-        status: input.status ?? 'active',
+    async create(input: any) {
+      const u = {
+        id: input.id, email: input.email, name: input.name,
+        passwordHash: input.passwordHash ?? null, role: input.role,
+        googleId: input.googleId ?? null, status: input.status ?? 'active',
         createdAt: new Date(),
       };
-      store.set(user.id, user);
-      return user;
+      store.set(u.id, u);
+      return u;
     },
     async findByEmail(email: string) {
-      return [...store.values()].find(u => u.email === email) ?? null;
+      return [...store.values()].find((u) => u.email === email) ?? null;
     },
     async findById(id: string) {
       return store.get(id) ?? null;
     },
-    async findByGoogleId(googleId: string) {
-      return [...store.values()].find(u => u.googleId === googleId) ?? null;
+    async activate(id: string, passwordHash: string) {
+      const u = store.get(id);
+      const up = { ...u, passwordHash, status: 'active' };
+      store.set(id, up);
+      return up;
     },
-    async update(id: string, data: any) {
-      const user = store.get(id);
-      if (!user) throw new Error('User not found');
-      const updated = { ...user, ...data };
-      store.set(id, updated);
-      return updated;
+    async setStatus(id: string, status: string) {
+      const u = store.get(id);
+      const up = { ...u, status };
+      store.set(id, up);
+      return up;
     },
-  } as unknown as UserRepository;
+    _store: store,
+  };
 }
 
-function makeService(opts: { domain?: string } = {}): AuthService {
-  return new AuthService(
-    makeMockRepo(),
+function makeInvitations() {
+  const store = new Map<string, any>();
+  return {
+    async findByTokenHash(hash: string) {
+      return [...store.values()].find((i) => i.tokenHash === hash) ?? null;
+    },
+    async setStatus(id: string, status: string, acceptedAt?: Date) {
+      const i = store.get(id);
+      const up = { ...i, status, ...(acceptedAt ? { acceptedAt } : {}) };
+      store.set(id, up);
+      return up;
+    },
+    _store: store,
+  };
+}
+
+function makeService() {
+  const users = makeUsers();
+  const invitations = makeInvitations();
+  const svc = new AuthService(
+    users as any,
+    invitations as any,
     'test-jwt-secret',
     'test-refresh-secret',
-    opts.domain ?? '',
   );
+  return { svc, users, invitations };
 }
 
-describe('AuthService', () => {
-  describe('register', () => {
-    it('registers a new user and returns tokens', async () => {
-      const svc = makeService();
-      const result = await svc.register('alice@test.com', 'Alice', 'password123');
-      expect(result.user.email).toBe('alice@test.com');
-      expect(result.accessToken).toBeTruthy();
-      expect(result.refreshToken).toBeTruthy();
-    });
+function seedUser(users: any, over: any = {}) {
+  const u = {
+    id: 'u1', email: 'ivy@test.com', name: 'Ivy', passwordHash: null,
+    role: 'instructor', googleId: null, status: 'invited', createdAt: new Date(), ...over,
+  };
+  users._store.set(u.id, u);
+  return u;
+}
 
-    it('throws ConflictException on duplicate email', async () => {
-      const svc = makeService();
-      await svc.register('alice@test.com', 'Alice', 'password123');
-      await expect(svc.register('alice@test.com', 'Alice2', 'password456')).rejects.toThrow(
-        ConflictException,
-      );
-    });
+function seedInvitation(invitations: any, rawToken: string, over: any = {}) {
+  const i = {
+    id: 'inv1', email: 'ivy@test.com', userId: 'u1', invitedById: 'admin',
+    role: 'instructor', tokenHash: hashInviteToken(rawToken), status: 'pending',
+    expiresAt: new Date(Date.now() + 60000), acceptedAt: null, createdAt: new Date(), ...over,
+  };
+  invitations._store.set(i.id, i);
+  return i;
+}
 
-    it('throws ForbiddenException when email domain does not match', async () => {
-      const svc = makeService({ domain: 'allowed.com' });
-      await expect(svc.register('alice@other.com', 'Alice', 'password123')).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
+describe('AuthService.acceptInvite', () => {
+  it('rejects an unknown token with BadRequest', async () => {
+    const { svc } = makeService();
+    await expect(svc.acceptInvite('nope', 'password123')).rejects.toThrow(BadRequestException);
   });
 
-  describe('login', () => {
-    it('returns tokens on valid credentials', async () => {
-      const svc = makeService();
-      await svc.register('bob@test.com', 'Bob', 'securePass1');
-      const result = await svc.login('bob@test.com', 'securePass1');
-      expect(result.user.email).toBe('bob@test.com');
-      expect(result.accessToken).toBeTruthy();
-    });
-
-    it('throws UnauthorizedException on wrong password', async () => {
-      const svc = makeService();
-      await svc.register('bob@test.com', 'Bob', 'securePass1');
-      await expect(svc.login('bob@test.com', 'wrongpass')).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('throws UnauthorizedException when user not found', async () => {
-      const svc = makeService();
-      await expect(svc.login('nobody@test.com', 'pass')).rejects.toThrow(UnauthorizedException);
-    });
+  it('rejects an expired invitation', async () => {
+    const { svc, users, invitations } = makeService();
+    seedUser(users);
+    seedInvitation(invitations, 'rawtoken', { expiresAt: new Date(Date.now() - 1000) });
+    await expect(svc.acceptInvite('rawtoken', 'password123')).rejects.toThrow(BadRequestException);
   });
 
-  describe('refresh', () => {
-    it('returns new access token on valid refresh token', async () => {
-      const svc = makeService();
-      const { refreshToken } = await svc.register('carol@test.com', 'Carol', 'pass12345');
-      const result = await svc.refresh(refreshToken);
-      expect(result.user.email).toBe('carol@test.com');
-      expect(result.accessToken).toBeTruthy();
-    });
-
-    it('throws UnauthorizedException on invalid refresh token', async () => {
-      const svc = makeService();
-      await expect(svc.refresh('bad.token.here')).rejects.toThrow(UnauthorizedException);
-    });
+  it('rejects a non-pending invitation', async () => {
+    const { svc, users, invitations } = makeService();
+    seedUser(users);
+    seedInvitation(invitations, 'rawtoken', { status: 'revoked' });
+    await expect(svc.acceptInvite('rawtoken', 'password123')).rejects.toThrow(BadRequestException);
   });
 
-  describe('findOrCreateGoogleUser', () => {
-    it('creates a new user when no match exists', async () => {
-      const svc = makeService();
-      const result = await svc.findOrCreateGoogleUser('goog-001', 'dave@test.com', 'Dave');
-      expect(result.user.email).toBe('dave@test.com');
-      expect(result.user.googleId).toBe('goog-001');
-    });
+  it('activates the user, sets password, marks accepted, returns tokens', async () => {
+    const { svc, users, invitations } = makeService();
+    seedUser(users);
+    seedInvitation(invitations, 'rawtoken');
+    const res = await svc.acceptInvite('rawtoken', 'password123');
+    expect(res.user.id).toBe('u1');
+    expect(res.user.status).toBe('active');
+    expect(res.accessToken).toBeTruthy();
+    expect(users._store.get('u1').passwordHash).toBeTruthy();
+    expect(invitations._store.get('inv1').status).toBe('accepted');
+  });
+});
 
-    it('returns existing user when googleId matches', async () => {
-      const svc = makeService();
-      const first = await svc.findOrCreateGoogleUser('goog-002', 'eve@test.com', 'Eve');
-      const second = await svc.findOrCreateGoogleUser('goog-002', 'eve@test.com', 'Eve');
-      expect(second.user.id).toBe(first.user.id);
+describe('AuthService.login (status gate)', () => {
+  async function seedActive(users: any, status = 'active') {
+    users._store.set('u2', {
+      id: 'u2', email: 'bob@test.com', name: 'Bob',
+      passwordHash: await bcrypt.hash('password123', 10),
+      role: 'instructor', googleId: null, status, createdAt: new Date(),
     });
+  }
 
-    it('links googleId to existing account by email', async () => {
-      const svc = makeService();
-      await svc.register('frank@test.com', 'Frank', 'pass12345');
-      const result = await svc.findOrCreateGoogleUser('goog-003', 'frank@test.com', 'Frank');
-      expect(result.user.googleId).toBe('goog-003');
+  it('returns tokens for an active user with the right password', async () => {
+    const { svc, users } = makeService();
+    await seedActive(users);
+    const res = await svc.login('bob@test.com', 'password123');
+    expect(res.user.email).toBe('bob@test.com');
+    expect(res.accessToken).toBeTruthy();
+  });
+
+  it('rejects a wrong password', async () => {
+    const { svc, users } = makeService();
+    await seedActive(users);
+    await expect(svc.login('bob@test.com', 'wrong')).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects an invited (not yet activated) user', async () => {
+    const { svc, users } = makeService();
+    await seedActive(users, 'invited');
+    await expect(svc.login('bob@test.com', 'password123')).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects a disabled user', async () => {
+    const { svc, users } = makeService();
+    await seedActive(users, 'disabled');
+    await expect(svc.login('bob@test.com', 'password123')).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects an unknown user', async () => {
+    const { svc } = makeService();
+    await expect(svc.login('nobody@test.com', 'password123')).rejects.toThrow(UnauthorizedException);
+  });
+});
+
+describe('AuthService.refresh (status gate)', () => {
+  it('returns a new access token for an active user', async () => {
+    const { svc, users } = makeService();
+    users._store.set('u5', {
+      id: 'u5', email: 'carol@test.com', name: 'Carol', passwordHash: 'x',
+      role: 'instructor', googleId: null, status: 'active', createdAt: new Date(),
     });
+    const rt = jwt.sign({ sub: 'u5', email: 'carol@test.com' }, 'test-refresh-secret', { expiresIn: '7d' });
+    const res = await svc.refresh(rt);
+    expect(res.user.email).toBe('carol@test.com');
+  });
+
+  it('rejects an invalid refresh token', async () => {
+    const { svc } = makeService();
+    await expect(svc.refresh('bad.token')).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects refresh for a disabled user', async () => {
+    const { svc, users } = makeService();
+    users._store.set('u6', {
+      id: 'u6', email: 'dis@test.com', name: 'D', passwordHash: 'x',
+      role: 'instructor', googleId: null, status: 'disabled', createdAt: new Date(),
+    });
+    const rt = jwt.sign({ sub: 'u6', email: 'dis@test.com' }, 'test-refresh-secret', { expiresIn: '7d' });
+    await expect(svc.refresh(rt)).rejects.toThrow(UnauthorizedException);
   });
 });
