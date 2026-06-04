@@ -11,6 +11,10 @@
 test-results/
 playwright-report/
 
+# agent-browser QA harness — generated evidence, never commit
+qa/agent-browser/output/*
+!qa/agent-browser/output/.gitkeep
+
 # next.js
 /.next/
 /out/
