@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Invitation, InvitationStatus, UserRole } from '@prisma/client';
+import { Invitation, InvitationStatus, Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type CreateInvitationInput = {
@@ -16,8 +16,8 @@ export type CreateInvitationInput = {
 export class InvitationRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(input: CreateInvitationInput): Promise<Invitation> {
-    return this.prisma.invitation.create({ data: { ...input, status: 'pending' } });
+  create(input: CreateInvitationInput, tx?: Prisma.TransactionClient): Promise<Invitation> {
+    return (tx ?? this.prisma).invitation.create({ data: { ...input, status: 'pending' } });
   }
 
   findByTokenHash(tokenHash: string): Promise<Invitation | null> {
