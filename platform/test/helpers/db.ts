@@ -17,6 +17,7 @@ export async function resetDb(prisma: PrismaClient): Promise<void> {
   await prisma.attempt.deleteMany();
   await prisma.exerciseResult.deleteMany();
   await prisma.enrollment.deleteMany();
+  await prisma.invitation.deleteMany();
   await prisma.student.deleteMany();
   await prisma.user.deleteMany();
   await prisma.cohort.deleteMany();
