@@ -4,13 +4,11 @@ import { useRouter } from 'next/navigation';
 import { login } from '@/lib/auth';
 import { useAuth } from '@/components/layout/AuthProvider';
 
-const isDev = process.env.NODE_ENV !== 'production';
-
 export default function LoginPage() {
   const router = useRouter();
   const { refresh } = useAuth();
-  const [email, setEmail] = useState(isDev ? 'student@bootcamp.dev' : '');
-  const [password, setPassword] = useState(isDev ? 'test1234' : '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -24,21 +22,6 @@ export default function LoginPage() {
       router.push('/');
     } catch {
       setError('Invalid email or password.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function loginAs(role: 'student' | 'instructor') {
-    setError('');
-    setSubmitting(true);
-    const testEmail = role === 'instructor' ? 'instructor@bootcamp.dev' : 'student@bootcamp.dev';
-    try {
-      await login(testEmail, 'test1234');
-      await refresh();
-      router.push('/');
-    } catch {
-      setError(`Test ${role} account not found. Run 'npm run seed' in platform/.`);
     } finally {
       setSubmitting(false);
     }
@@ -109,30 +92,6 @@ export default function LoginPage() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
-
-        <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
-          <p className="mb-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
-            Quick test login
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => loginAs('student')}
-              disabled={submitting}
-              className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              Student
-            </button>
-            <button
-              type="button"
-              onClick={() => loginAs('instructor')}
-              disabled={submitting}
-              className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              Instructor
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
