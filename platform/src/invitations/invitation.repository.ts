@@ -44,10 +44,23 @@ export class InvitationRepository {
     });
   }
 
-  setStatus(id: string, status: InvitationStatus, acceptedAt?: Date): Promise<Invitation> {
-    return this.prisma.invitation.update({
+  setStatus(id: string, status: InvitationStatus, acceptedAt?: Date, tx?: Prisma.TransactionClient): Promise<Invitation> {
+    return (tx ?? this.prisma).invitation.update({
       where: { id },
       data: { status, ...(acceptedAt ? { acceptedAt } : {}) },
     });
+  }
+
+  /**
+   * Atomically transition pending -> accepted. Returns true only for the ONE
+   * caller that wins the race; concurrent duplicates get false. Prevents a
+   * magic-link token from being redeemed more than once.
+   */
+  async markAcceptedIfPending(id: string, acceptedAt: Date, tx?: Prisma.TransactionClient): Promise<boolean> {
+    const res = await (tx ?? this.prisma).invitation.updateMany({
+      where: { id, status: 'pending' },
+      data: { status: 'accepted', acceptedAt },
+    });
+    return res.count === 1;
   }
 }

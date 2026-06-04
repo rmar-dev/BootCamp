@@ -133,16 +133,16 @@ describe('InvitationsService.revoke', () => {
     const { svc, invitations, users } = build();
     invitations.findById.mockResolvedValue({ id: 'inv', invitedById: 'inst-1', userId: 'u', status: 'pending' });
     await svc.revoke('inv', INSTRUCTOR);
-    expect(users.setStatus).toHaveBeenCalledWith('u', 'disabled');
-    expect(invitations.setStatus).toHaveBeenCalledWith('inv', 'revoked');
+    expect(users.setStatus).toHaveBeenCalledWith('u', 'disabled', expect.anything());
+    expect(invitations.setStatus).toHaveBeenCalledWith('inv', 'revoked', undefined, expect.anything());
   });
 
   it('admin can revoke an invite issued by someone else', async () => {
     const { svc, invitations, users } = build();
     invitations.findById.mockResolvedValue({ id: 'inv', invitedById: 'inst-9', userId: 'u', status: 'pending' });
     await svc.revoke('inv', ADMIN);
-    expect(users.setStatus).toHaveBeenCalledWith('u', 'disabled');
-    expect(invitations.setStatus).toHaveBeenCalledWith('inv', 'revoked');
+    expect(users.setStatus).toHaveBeenCalledWith('u', 'disabled', expect.anything());
+    expect(invitations.setStatus).toHaveBeenCalledWith('inv', 'revoked', undefined, expect.anything());
   });
 
   it('revoke throws NotFound for a missing invite', async () => {

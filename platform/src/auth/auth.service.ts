@@ -78,8 +78,14 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+
+    // Single-use: only one concurrent caller wins this atomic transition.
+    const claimed = await this.invitationRepo.markAcceptedIfPending(invitation.id, new Date());
+    if (!claimed) throw invalid;
+
+    // Only activates a still-invited account; null => already activated/disabled.
     const user = await this.userRepo.activate(invitation.userId, passwordHash);
-    await this.invitationRepo.setStatus(invitation.id, 'accepted', new Date());
+    if (!user) throw invalid;
 
     const tokens = this.signTokens(user);
     return { user: toUserResponse(user), ...tokens };

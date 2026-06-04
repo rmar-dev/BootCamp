@@ -112,7 +112,9 @@ export class InvitationsService {
     if (invitation.status !== 'pending') {
       throw new BadRequestException('Only a pending invitation can be revoked');
     }
-    await this.users.setStatus(invitation.userId, 'disabled');
-    await this.invitations.setStatus(id, 'revoked');
+    await this.prisma.$transaction(async (tx) => {
+      await this.users.setStatus(invitation.userId, 'disabled', tx);
+      await this.invitations.setStatus(id, 'revoked', undefined, tx);
+    });
   }
 }

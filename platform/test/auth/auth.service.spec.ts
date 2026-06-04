@@ -25,6 +25,7 @@ function makeUsers() {
     },
     async activate(id: string, passwordHash: string) {
       const u = store.get(id);
+      if (!u || u.status !== 'invited') return null;
       const up = { ...u, passwordHash, status: 'active' };
       store.set(id, up);
       return up;
@@ -44,6 +45,12 @@ function makeInvitations() {
   return {
     async findByTokenHash(hash: string) {
       return [...store.values()].find((i) => i.tokenHash === hash) ?? null;
+    },
+    async markAcceptedIfPending(id: string, acceptedAt: Date) {
+      const i = store.get(id);
+      if (!i || i.status !== 'pending') return false;
+      store.set(id, { ...i, status: 'accepted', acceptedAt });
+      return true;
     },
     async setStatus(id: string, status: string, acceptedAt?: Date) {
       const i = store.get(id);
@@ -116,6 +123,14 @@ describe('AuthService.acceptInvite', () => {
     expect(res.accessToken).toBeTruthy();
     expect(users._store.get('u1').passwordHash).toBeTruthy();
     expect(invitations._store.get('inv1').status).toBe('accepted');
+  });
+
+  it('is single-use: a second accept with the same token is rejected', async () => {
+    const { svc, users, invitations } = makeService();
+    seedUser(users);
+    seedInvitation(invitations, 'rawtoken');
+    await svc.acceptInvite('rawtoken', 'password123');
+    await expect(svc.acceptInvite('rawtoken', 'password123')).rejects.toThrow(BadRequestException);
   });
 });
 

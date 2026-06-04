@@ -46,15 +46,22 @@ export class UserRepository {
     return this.prisma.user.update({ where: { id }, data });
   }
 
-  /** Set the password hash and flip an invited user to active. */
-  activate(id: string, passwordHash: string): Promise<User> {
-    return this.prisma.user.update({
-      where: { id },
+  /**
+   * Set the password hash and flip an INVITED user to active. Returns the
+   * updated user, or null if the user was not in 'invited' state (already
+   * active, disabled, or missing) — callers must treat null as failure.
+   */
+  async activate(id: string, passwordHash: string, tx?: Prisma.TransactionClient): Promise<User | null> {
+    const client = tx ?? this.prisma;
+    const res = await client.user.updateMany({
+      where: { id, status: 'invited' },
       data: { passwordHash, status: 'active' },
     });
+    if (res.count === 0) return null;
+    return client.user.findUnique({ where: { id } });
   }
 
-  setStatus(id: string, status: UserStatus): Promise<User> {
-    return this.prisma.user.update({ where: { id }, data: { status } });
+  setStatus(id: string, status: UserStatus, tx?: Prisma.TransactionClient): Promise<User> {
+    return (tx ?? this.prisma).user.update({ where: { id }, data: { status } });
   }
 }
