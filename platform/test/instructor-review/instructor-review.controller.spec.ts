@@ -7,6 +7,7 @@ import { DockerRunner } from '../../src/execution/docker-runner';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 describe('InstructorReviewController (e2e)', () => {
   let app: INestApplication;
@@ -37,44 +38,14 @@ describe('InstructorReviewController (e2e)', () => {
   });
 
   /**
-   * Register a user and return cookie + userId.
-   * For instructor role: after registering, update role in DB, then re-login
-   * to get a fresh cookie that carries the instructor role in the JWT.
+   * Seed a user with the requested role and return cookie + userId.
+   * The seeded login JWT already carries the role, so no re-login is needed.
    */
   async function registerAndGetCookie(
     email?: string,
     role: 'student' | 'instructor' = 'student',
   ): Promise<{ cookie: string; userId: string }> {
-    const userEmail = email ?? `user-${newId()}@test.com`;
-    const password = 'password123';
-
-    const regRes = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: userEmail, name: 'Tester', password });
-
-    const userId: string = regRes.body.user.id;
-
-    if (role === 'instructor') {
-      // Elevate role in DB
-      await prisma.user.update({
-        where: { id: userId },
-        data: { role: 'instructor' },
-      });
-
-      // Re-login so the JWT contains the updated role
-      const loginRes = await request(app.getHttpServer())
-        .post('/api/auth/login')
-        .send({ email: userEmail, password });
-
-      const raw = loginRes.headers['set-cookie'] as string | string[];
-      const arr = Array.isArray(raw) ? raw : [raw];
-      const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
-      return { cookie, userId };
-    }
-
-    const raw = regRes.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie, userId } = await createUserAndLogin(app, prisma, { email, role });
     return { cookie, userId };
   }
 

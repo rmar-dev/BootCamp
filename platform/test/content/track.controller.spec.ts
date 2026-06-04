@@ -9,6 +9,7 @@ import { TrackRepository } from '../../src/content/repositories/track.repository
 import { LessonRepository } from '../../src/content/repositories/lesson.repository';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 describe('TrackController (e2e)', () => {
   let app: INestApplication;
@@ -43,14 +44,7 @@ describe('TrackController (e2e)', () => {
   });
 
   async function registerAndGetCookie(email?: string): Promise<{ cookie: string; userId: string }> {
-    const userEmail = email ?? `user-${newId()}@test.com`;
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: userEmail, name: 'Tester', password: 'password123' });
-    const raw = res.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
-    const userId = res.body.user.id;
+    const { cookie, userId } = await createUserAndLogin(app, prisma, { email });
     return { cookie, userId };
   }
 

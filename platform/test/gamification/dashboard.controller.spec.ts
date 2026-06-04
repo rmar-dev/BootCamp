@@ -8,6 +8,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { ExerciseRepository } from '../../src/content/repositories/exercise.repository';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 describe('DashboardController (e2e)', () => {
   let app: INestApplication;
@@ -40,17 +41,7 @@ describe('DashboardController (e2e)', () => {
   });
 
   async function registerAndGetCookie(email?: string): Promise<{ cookie: string; email: string }> {
-    const userEmail = email ?? `user-${newId()}@test.com`;
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({
-        email: userEmail,
-        name: 'Tester',
-        password: 'password123',
-      });
-    const raw = res.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie, email: userEmail } = await createUserAndLogin(app, prisma, { email });
     return { cookie, email: userEmail };
   }
 

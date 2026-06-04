@@ -7,6 +7,7 @@ import { DockerRunner } from '../../src/execution/docker-runner';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 describe('ReviewQueueController (e2e)', () => {
   let app: INestApplication;
@@ -37,15 +38,7 @@ describe('ReviewQueueController (e2e)', () => {
   });
 
   async function registerAndGetCookie(): Promise<{ cookie: string; userId: string; studentId: string }> {
-    const userEmail = `user-${newId()}@test.com`;
-    const password = 'password123';
-    const regRes = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: userEmail, name: 'Tester', password });
-    const userId: string = regRes.body.user.id;
-    const raw = regRes.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    const cookie = arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie, userId } = await createUserAndLogin(app, prisma);
 
     const studentId = newId();
     await prisma.student.create({

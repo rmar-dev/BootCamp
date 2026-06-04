@@ -8,6 +8,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { ExerciseRepository } from '../../src/content/repositories/exercise.repository';
 import { resetDb } from '../helpers/db';
 import { newId } from '../../src/shared/ids';
+import { createUserAndLogin } from '../helpers/auth';
 
 const mcPayload = {
   type: 'multiple_choice' as const,
@@ -51,16 +52,8 @@ describe('ProgressController (e2e)', () => {
   });
 
   async function getAuthCookie(email?: string): Promise<string> {
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({
-        email: email ?? `user-${newId()}@test.com`,
-        name: 'Tester',
-        password: 'password123',
-      });
-    const raw = res.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    return arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie } = await createUserAndLogin(app, prisma, { email });
+    return cookie;
   }
 
   async function seedMcExercise(): Promise<string> {

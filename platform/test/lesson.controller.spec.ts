@@ -9,6 +9,7 @@ import { LessonRepository } from '../src/content/repositories/lesson.repository'
 import { ExerciseRepository } from '../src/content/repositories/exercise.repository';
 import { resetDb } from './helpers/db';
 import { newId } from '../src/shared/ids';
+import { createUserAndLogin } from './helpers/auth';
 
 const mcPayload = {
   type: 'multiple_choice' as const,
@@ -50,16 +51,8 @@ describe('LessonController (e2e)', () => {
   });
 
   async function getAuthCookie(): Promise<string> {
-    const res = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({
-        email: `user-${newId()}@test.com`,
-        name: 'Tester',
-        password: 'password123',
-      });
-    const raw = res.headers['set-cookie'] as string | string[];
-    const arr = Array.isArray(raw) ? raw : [raw];
-    return arr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie } = await createUserAndLogin(app, prisma);
+    return cookie;
   }
 
   it('GET /api/lessons/:id returns published lesson', async () => {
@@ -149,14 +142,12 @@ describe('LessonController (e2e)', () => {
   });
 
   it('GET /api/lessons/:id returns correct attemptStatus for first_try and eventual', async () => {
-    // Register with a known email so we can look up the user later
+    // Seed with a known email so we can look up the user later
     const knownEmail = `known-${newId()}@test.com`;
-    const regRes = await request(app.getHttpServer())
-      .post('/api/auth/register')
-      .send({ email: knownEmail, name: 'Student', password: 'password123' });
-    const rawCookie = regRes.headers['set-cookie'] as string | string[];
-    const cookieArr = Array.isArray(rawCookie) ? rawCookie : [rawCookie];
-    const knownCookie = cookieArr.find((c: string) => c.startsWith('bc.access='))!;
+    const { cookie: knownCookie } = await createUserAndLogin(app, prisma, {
+      email: knownEmail,
+      name: 'Student',
+    });
 
     const ex1Id = newId();
     const ex2Id = newId();
