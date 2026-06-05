@@ -95,4 +95,38 @@ describe('DockerRunner', () => {
     await runner.run('kotlin', 'fun main() { println("hi") }', 5000);
     expect(mock.capturedContainer).toBe('bootcamp-kotlin-runner');
   });
+
+  describe('container name resolution', () => {
+    const original = {
+      swift: process.env.SWIFT_RUNNER_CONTAINER,
+      kotlin: process.env.KOTLIN_RUNNER_CONTAINER,
+    };
+    afterEach(() => {
+      if (original.swift === undefined) delete process.env.SWIFT_RUNNER_CONTAINER;
+      else process.env.SWIFT_RUNNER_CONTAINER = original.swift;
+      if (original.kotlin === undefined) delete process.env.KOTLIN_RUNNER_CONTAINER;
+      else process.env.KOTLIN_RUNNER_CONTAINER = original.kotlin;
+    });
+
+    it('honors SWIFT_RUNNER_CONTAINER override (e.g. prod -prod suffix)', async () => {
+      process.env.SWIFT_RUNNER_CONTAINER = 'bootcamp-swift-runner-prod';
+      const mock = makeDockerMock({ stdout: '', exitCode: 0 });
+      await new DockerRunner(mock).run('swift', 'code', 5000);
+      expect(mock.capturedContainer).toBe('bootcamp-swift-runner-prod');
+    });
+
+    it('honors KOTLIN_RUNNER_CONTAINER override (e.g. prod -prod suffix)', async () => {
+      process.env.KOTLIN_RUNNER_CONTAINER = 'bootcamp-kotlin-runner-prod';
+      const mock = makeDockerMock({ stdout: '', exitCode: 0 });
+      await new DockerRunner(mock).run('kotlin', 'code', 5000);
+      expect(mock.capturedContainer).toBe('bootcamp-kotlin-runner-prod');
+    });
+
+    it('falls back to the dev default when the env var is unset', async () => {
+      delete process.env.SWIFT_RUNNER_CONTAINER;
+      const mock = makeDockerMock({ stdout: '', exitCode: 0 });
+      await new DockerRunner(mock).run('swift', 'code', 5000);
+      expect(mock.capturedContainer).toBe('bootcamp-swift-runner');
+    });
+  });
 });
