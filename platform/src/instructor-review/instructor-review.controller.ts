@@ -27,43 +27,46 @@ export class InstructorReviewController {
 
   @Get('queue')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('instructor')
-  async getQueue(@CurrentUser() user: { userId: string }) {
-    return this.service.getPendingQueue(user.userId);
+  @Roles('instructor', 'admin')
+  async getQueue(@CurrentUser() user: { userId: string; role: string }) {
+    return this.service.getPendingQueue(user.userId, user.role === 'admin');
   }
 
   @Get('queue/reviewed')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('instructor')
-  async getReviewedQueue(@CurrentUser() user: { userId: string }) {
-    return this.service.getReviewedQueue(user.userId);
+  @Roles('instructor', 'admin')
+  async getReviewedQueue(@CurrentUser() user: { userId: string; role: string }) {
+    return this.service.getReviewedQueue(user.userId, user.role === 'admin');
   }
 
   @Get('attempt/:attemptId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('instructor')
+  @Roles('instructor', 'admin')
   async getAttemptDetail(
     @Param('attemptId') attemptId: string,
-    @CurrentUser() user: { userId: string },
+    @CurrentUser() user: { userId: string; role: string },
   ) {
     const detail = await this.service.getAttemptDetail(attemptId);
     if (!detail) throw new NotFoundException('Attempt not found');
 
-    // Fix 6: Verify the attempt's student belongs to one of the instructor's cohorts
-    const attempt = await this.service.getAttemptById(attemptId);
-    if (!attempt) throw new NotFoundException('Attempt not found');
-    const inCohort = await this.service.isStudentInInstructorCohort(
-      attempt.studentId,
-      user.userId,
-    );
-    if (!inCohort) throw new ForbiddenException('Student is not in your cohort');
+    // Verify the attempt's student belongs to one of the instructor's cohorts.
+    // Admins have platform-wide oversight, so the per-cohort scoping is skipped.
+    if (user.role !== 'admin') {
+      const attempt = await this.service.getAttemptById(attemptId);
+      if (!attempt) throw new NotFoundException('Attempt not found');
+      const inCohort = await this.service.isStudentInInstructorCohort(
+        attempt.studentId,
+        user.userId,
+      );
+      if (!inCohort) throw new ForbiddenException('Student is not in your cohort');
+    }
 
     return detail;
   }
 
   @Put('approve/:attemptId')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('instructor')
+  @Roles('instructor', 'admin')
   async approveAttempt(
     @Param('attemptId') attemptId: string,
     @CurrentUser() user: { userId: string },
@@ -80,7 +83,7 @@ export class InstructorReviewController {
 
   @Post('review')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('instructor')
+  @Roles('instructor', 'admin')
   async createReview(
     @CurrentUser() user: { userId: string },
     @Body() body: { attemptId: string; markdown: string },
@@ -101,7 +104,7 @@ export class InstructorReviewController {
 
   @Put('review/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('instructor')
+  @Roles('instructor', 'admin')
   async updateReview(
     @Param('id') id: string,
     @Body() body: { markdown: string },
