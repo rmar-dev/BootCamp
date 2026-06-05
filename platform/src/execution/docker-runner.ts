@@ -62,8 +62,16 @@ ec=$?
 rm -rf "$dir"
 exit $ec`;
 
+// Container names are environment-specific: dev compose uses the bare
+// `bootcamp-{lang}-runner` names, while the prod compose suffixes them
+// (`-prod`) and passes the real names via SWIFT_RUNNER_CONTAINER /
+// KOTLIN_RUNNER_CONTAINER. Read those env vars first so the platform finds
+// its sidecars in every environment, falling back to the dev defaults.
 function containerName(language: RunnerLanguage): string {
-  return language === 'swift' ? 'bootcamp-swift-runner' : 'bootcamp-kotlin-runner';
+  if (language === 'swift') {
+    return process.env.SWIFT_RUNNER_CONTAINER || 'bootcamp-swift-runner';
+  }
+  return process.env.KOTLIN_RUNNER_CONTAINER || 'bootcamp-kotlin-runner';
 }
 
 function bashScript(language: RunnerLanguage): string {
