@@ -25,28 +25,38 @@ export class InstructorReviewService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async getPendingQueue(instructorId: string): Promise<QueueItem[]> {
-    return this.getQueue(instructorId, false);
+  async getPendingQueue(instructorId: string, isAdmin = false): Promise<QueueItem[]> {
+    return this.getQueue(instructorId, false, isAdmin);
   }
 
-  async getReviewedQueue(instructorId: string): Promise<QueueItem[]> {
-    return this.getQueue(instructorId, true);
+  async getReviewedQueue(instructorId: string, isAdmin = false): Promise<QueueItem[]> {
+    return this.getQueue(instructorId, true, isAdmin);
   }
 
-  private async getQueue(instructorId: string, reviewed: boolean): Promise<QueueItem[]> {
-    // Find all cohorts for this instructor
-    const cohorts = await this.prisma.cohort.findMany({
-      where: { instructorId },
-      select: { id: true },
-    });
-    const cohortIds = cohorts.map((c) => c.id);
-    if (cohortIds.length === 0) return [];
-
-    // Find students in those cohorts
-    const students = await this.prisma.student.findMany({
-      where: { cohortId: { in: cohortIds } },
-      select: { id: true, name: true, email: true },
-    });
+  private async getQueue(
+    instructorId: string,
+    reviewed: boolean,
+    isAdmin = false,
+  ): Promise<QueueItem[]> {
+    // Resolve the set of students in scope. Instructors see only students in
+    // their own cohorts; admins have platform-wide oversight and see all.
+    let students: { id: string; name: string; email: string }[];
+    if (isAdmin) {
+      students = await this.prisma.student.findMany({
+        select: { id: true, name: true, email: true },
+      });
+    } else {
+      const cohorts = await this.prisma.cohort.findMany({
+        where: { instructorId },
+        select: { id: true },
+      });
+      const cohortIds = cohorts.map((c) => c.id);
+      if (cohortIds.length === 0) return [];
+      students = await this.prisma.student.findMany({
+        where: { cohortId: { in: cohortIds } },
+        select: { id: true, name: true, email: true },
+      });
+    }
     const studentIds = students.map((s) => s.id);
     if (studentIds.length === 0) return [];
 
