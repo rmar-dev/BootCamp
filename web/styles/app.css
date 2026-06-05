@@ -400,3 +400,32 @@
   background: color-mix(in oklch, var(--danger-400) 10%, var(--bg-1));
   border-color: color-mix(in oklch, var(--danger-400) 30%, transparent);
 }
+
+/* ---------- Monaco autocomplete (suggest) widget ---------- */
+/* The suggestion popup labels were rendering in an invisible color on prod:
+   the popup opened and items were selectable (selecting inserted the text),
+   but the label text itself was not visible. Monaco's own vs-dark theme colors
+   for the suggest widget can fail to apply depending on how the editor bundle
+   is delivered, leaving the labels to inherit the page's (dark) text color on
+   the dark popup. Force the vs-dark foreground explicitly. Scoped to the popup. */
+.monaco-editor .suggest-widget {
+  color: #d4d4d4;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-icon-label .label-name,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label span {
+  color: #d4d4d4 !important;
+}
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .monaco-icon-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .monaco-icon-label .label-name,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .monaco-highlighted-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .monaco-highlighted-label span {
+  color: #ffffff !important;
+}
+/* Secondary detail (type signature) + the docs side-panel text. */
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .details-label,
+.monaco-editor .suggest-widget .suggest-details,
+.monaco-editor .suggest-widget .suggest-details .monaco-tokenized-source {
+  color: #b5b5b5 !important;
+}
