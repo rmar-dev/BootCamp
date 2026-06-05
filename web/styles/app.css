@@ -333,16 +333,12 @@
 /* Run/Submit button row in code exercises (legacy fix-bug renderer) */
 .code-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* Live-coding layout: editor on the left, output panel on the right.
-   Stacks vertically below the md breakpoint. */
+/* Live-coding layout: full-width editor on top, output & tests panel below. */
 .code-ex-grid {
   display: grid;
   gap: 16px;
   grid-template-columns: 1fr;
   align-items: stretch;
-}
-@media (min-width: 960px) {
-  .code-ex-grid { grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr); }
 }
 .code-ex-editor { display: flex; flex-direction: column; min-width: 0; }
 .code-ex-editor > .code-frame { flex: 1; display: flex; flex-direction: column; }
