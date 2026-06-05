@@ -192,7 +192,7 @@ export function CodeExercise({ exercise, onAttempt }: { exercise: ExerciseDTO; o
               </Row>
             }
           >
-            <div style={{ height: 320, marginInline: -18, marginBlock: -16 }}>
+            <div style={{ height: 440, marginInline: -18, marginBlock: -16 }}>
               <Editor
                 height="100%"
                 language={language}
