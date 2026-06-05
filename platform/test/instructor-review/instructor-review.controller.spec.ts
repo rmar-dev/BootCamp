@@ -43,7 +43,7 @@ describe('InstructorReviewController (e2e)', () => {
    */
   async function registerAndGetCookie(
     email?: string,
-    role: 'student' | 'instructor' = 'student',
+    role: 'student' | 'instructor' | 'admin' = 'student',
   ): Promise<{ cookie: string; userId: string }> {
     const { cookie, userId } = await createUserAndLogin(app, prisma, { email, role });
     return { cookie, userId };
@@ -233,6 +233,26 @@ describe('InstructorReviewController (e2e)', () => {
         .expect(403);
     });
 
+    it('returns every cohort\'s pending items for an admin (oversight, not cohort-scoped)', async () => {
+      // Two independent instructors, each with their own cohort + passing attempt.
+      const instrA = await registerAndGetCookie(undefined, 'instructor');
+      const a = await seedCohortAndStudent(instrA.userId);
+      await seedExerciseAndPassingAttempt(a.studentId);
+
+      const instrB = await registerAndGetCookie(undefined, 'instructor');
+      const b = await seedCohortAndStudent(instrB.userId);
+      await seedExerciseAndPassingAttempt(b.studentId);
+
+      // Admin leads no cohort of their own, yet sees both instructors' items.
+      const { cookie: adminCookie } = await registerAndGetCookie(undefined, 'admin');
+      const res = await request(app.getHttpServer())
+        .get('/api/instructor/queue')
+        .set('Cookie', adminCookie)
+        .expect(200);
+
+      expect(res.body.length).toBe(2);
+    });
+
     it('returns 401 without auth', async () => {
       await request(app.getHttpServer())
         .get('/api/instructor/queue')
@@ -269,6 +289,21 @@ describe('InstructorReviewController (e2e)', () => {
         .get(`/api/instructor/attempt/${newId()}`)
         .set('Cookie', cookie)
         .expect(404);
+    });
+
+    it('lets an admin open an attempt outside any cohort of their own (oversight)', async () => {
+      // Attempt belongs to a different instructor's cohort; the admin still gets it.
+      const instr = await registerAndGetCookie(undefined, 'instructor');
+      const { studentId } = await seedCohortAndStudent(instr.userId);
+      const { attemptId } = await seedExerciseAndPassingAttempt(studentId);
+
+      const { cookie: adminCookie } = await registerAndGetCookie(undefined, 'admin');
+      const res = await request(app.getHttpServer())
+        .get(`/api/instructor/attempt/${attemptId}`)
+        .set('Cookie', adminCookie)
+        .expect(200);
+
+      expect(res.body.attemptId).toBe(attemptId);
     });
   });
 
