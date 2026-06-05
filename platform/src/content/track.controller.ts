@@ -13,6 +13,7 @@ import { LessonRepository } from './repositories/lesson.repository';
 import { CohortRepository } from '../state/repositories/cohort.repository';
 import { CohortTrackAssignmentRepository } from '../skill-tree/cohort-track-assignment.repository';
 import { StudentTrackAssignmentRepository } from '../skill-tree/student-track-assignment.repository';
+import { SkillTreeService } from '../skill-tree/skill-tree.service';
 import { EnsureStudentService } from '../submission/ensure-student';
 
 export type TrackSummary = {
@@ -46,6 +47,7 @@ export class TrackController {
     private readonly ensureStudent: EnsureStudentService,
     private readonly skillTreeAssignments: CohortTrackAssignmentRepository,
     private readonly studentSkillTreeAssignments: StudentTrackAssignmentRepository,
+    private readonly skillTrees: SkillTreeService,
   ) {}
 
   @Get()
@@ -81,12 +83,27 @@ export class TrackController {
   async detail(
     @Param('id') id: string,
     @Query('mode') mode: string | undefined,
-    @Req() req: { user: { userId: string } },
+    @Query('previewTreeId') previewTreeId: string | undefined,
+    @Req() req: { user: { userId: string; role: string } },
   ): Promise<TrackDetail> {
     const track = await this.tracks.findLatestPublished(id);
     if (!track) throw new NotFoundException(`Track ${id} not found`);
 
     const previewMode = mode === 'preview';
+
+    // Instructor/admin "preview this tree" path: when a previewTreeId is given
+    // (only honoured in preview mode, for instructors/admins), render that
+    // tree's lesson sequence instead of resolving the student's active tree.
+    // getTree enforces visibility (author / public / admin) and throws 403/404
+    // otherwise, so a student can't use this to peek at private trees.
+    const canPreviewTree =
+      previewMode &&
+      !!previewTreeId &&
+      (req.user.role === 'instructor' || req.user.role === 'admin');
+    const previewTree = canPreviewTree
+      ? await this.skillTrees.getTree(previewTreeId!, req.user.userId, req.user.role)
+      : null;
+
     const studentRecord = previewMode
       ? null
       : await this.ensureStudent.ensureStudent(req.user.userId);
@@ -111,8 +128,12 @@ export class TrackController {
       : null;
     const activeAssignment = studentOverride ?? cohortAssignment;
 
-    const sourceLessonIds: string[] = activeAssignment?.skillTree.lessonIds ?? track.lessonIds;
-    const sourceLessonVersions: number[] | null = activeAssignment ? null : track.lessonVersions;
+    // previewTree (if any) wins over the normal resolution. Its lessons resolve
+    // to "latest published" per id, like an active assignment.
+    const sourceLessonIds: string[] =
+      previewTree?.lessonIds ?? activeAssignment?.skillTree.lessonIds ?? track.lessonIds;
+    const sourceLessonVersions: number[] | null =
+      previewTree || activeAssignment ? null : track.lessonVersions;
 
     const lessonRecords = await Promise.all(
       sourceLessonIds.map(async (lessonId: string, idx: number) => {

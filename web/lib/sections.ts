@@ -70,6 +70,10 @@ export function chunkLessonsIntoSections(
   lessons: LessonSummary[],
   progress: TrackProgress | null,
   size: number = DEFAULT_SECTION_SIZE,
+  // Preview mode: never lock later sections (an instructor previewing a tree
+  // has no progress, so the normal "prior section incomplete → locked" rule
+  // would hide everything past Part 1). All nodes render as available.
+  unlockAll: boolean = false,
 ): TreeSection[] {
   if (lessons.length === 0) return [];
 
@@ -104,7 +108,9 @@ export function chunkLessonsIntoSections(
   });
 
   for (let i = 1; i < sections.length; i++) {
-    sections[i].locked = sections.slice(0, i).some((s) => s.progressPct < 100);
+    sections[i].locked = unlockAll
+      ? false
+      : sections.slice(0, i).some((s) => s.progressPct < 100);
   }
 
   for (let i = 0; i < sections.length; i++) {

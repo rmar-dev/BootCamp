@@ -39,6 +39,9 @@ import {
   Textarea,
 } from '@/components/ui';
 import { SwapLessonModal, type PickedLesson } from '@/components/instructor/skill-tree/SwapLessonModal';
+import { TreeSection } from '@/components/tracks/TreeSection';
+import { chunkLessonsIntoSections, DEFAULT_SECTION_SIZE } from '@/lib/sections';
+import type { SkillNodeTint } from '@/components/ui/SkillNode';
 
 type SaveAsModalState =
   | { open: false }
@@ -193,6 +196,21 @@ export default function SkillTreeComposerPage() {
   );
 
   const planSet = useMemo(() => new Set(planIds), [planIds]);
+
+  // ── Live preview (renders the in-progress plan as the student skill tree) ──
+  const trackTitle = useMemo(
+    () => tracks.find((t) => t.id === trackId)?.title ?? 'this track',
+    [tracks, trackId],
+  );
+  const previewTint: SkillNodeTint = useMemo(() => {
+    const lang = tracks.find((t) => t.id === trackId)?.language;
+    return lang === 'kotlin' ? 'kotlin' : lang === 'swift' ? 'swift' : 'shared';
+  }, [tracks, trackId]);
+  const previewSections = useMemo(
+    () =>
+      chunkLessonsIntoSections(trackTitle, planLessons, null, DEFAULT_SECTION_SIZE, true),
+    [trackTitle, planLessons],
+  );
 
   const isDirty = useMemo(() => {
     if (loadedTree) {
@@ -408,6 +426,35 @@ export default function SkillTreeComposerPage() {
       });
     }
   }, [loadedTree, cohortId, trackId, cohorts, refreshActiveAssignment]);
+
+  // Open the real student skill-tree view rendering THIS tree (preview), with
+  // no cohort/student assignment required. Persists pending edits first (when
+  // you own the tree) so the preview matches what you're editing.
+  const onPreviewAsStudent = useCallback(async () => {
+    if (!loadedTree) {
+      setFeedback({
+        kind: 'error',
+        message:
+          'Save this tree first ("Save as…") to open the full-page preview. The inline preview below already reflects your current edits.',
+      });
+      return;
+    }
+    setFeedback(null);
+    try {
+      if (isDirty && canEditLoadedTree) {
+        await updateTree(loadedTree.id, { lessonIds: planIds });
+        await refreshTrees(trackId);
+      }
+      router.push(
+        `/tracks?previewTreeId=${encodeURIComponent(loadedTree.id)}&trackId=${encodeURIComponent(loadedTree.trackId)}`,
+      );
+    } catch (err) {
+      setFeedback({
+        kind: 'error',
+        message: err instanceof Error ? err.message : 'Could not open preview',
+      });
+    }
+  }, [loadedTree, isDirty, canEditLoadedTree, planIds, refreshTrees, trackId, router]);
 
   // Click-through to the lesson editor: fork the published lesson into a
   // local draft (the builder edits drafts, not published rows directly),
@@ -719,6 +766,17 @@ export default function SkillTreeComposerPage() {
             <Button
               variant="outline"
               size="sm"
+              onClick={onPreviewAsStudent}
+              title="Open the student skill-tree view rendering this tree (no cohort needed)"
+            >
+              <Icon name="play" size={12} />
+              Preview as student
+            </Button>
+          )}
+          {loadedTree && (
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setAssignStudentModalOpen(true)}
               title="Assign this tree as one student's personal pick"
             >
@@ -877,6 +935,29 @@ export default function SkillTreeComposerPage() {
             </li>
           ))}
         </ol>
+      )}
+
+      {/* ── Live preview: how this plan renders as the student skill tree ── */}
+      {planLessons.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <Eyebrow>Preview</Eyebrow>
+          <p className="muted" style={{ margin: '4px 0 12px', fontSize: 'var(--t-sm)' }}>
+            How this tree renders for a student — updates live as you edit. All
+            sections are unlocked and progress is hidden.
+          </p>
+          <div className="tree-wrap">
+            {previewSections.map((s) => (
+              <TreeSection
+                key={s.index}
+                section={s}
+                tint={previewTint}
+                onSelectLesson={() => {
+                  /* preview only — nodes are non-interactive */
+                }}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       <SwapLessonModal

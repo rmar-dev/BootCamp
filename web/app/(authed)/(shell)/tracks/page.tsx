@@ -1,10 +1,10 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useActiveTrack } from '@/lib/track-context';
 import { fetchTrack, type TrackDetail } from '@/lib/tracks';
 import { fetchTrackProgress, type TrackProgress } from '@/lib/progress';
-import { chunkLessonsIntoSections } from '@/lib/sections';
+import { chunkLessonsIntoSections, DEFAULT_SECTION_SIZE } from '@/lib/sections';
 import { TreePageHead } from '@/components/tracks/TreePageHead';
 import { TreeSection } from '@/components/tracks/TreeSection';
 import { TreeSkeleton } from '@/components/tracks/TreeSkeleton';
@@ -37,7 +37,18 @@ function InlineError({ message, onRetry }: { message: string; onRetry: () => voi
 
 export default function TracksPage() {
   const router = useRouter();
-  const { trackId, loading: trackLoading } = useActiveTrack();
+  const searchParams = useSearchParams();
+  // Instructor "preview this tree as a student" entry: /tracks?previewTreeId=…&trackId=…
+  // renders a specific skill tree instead of the viewer's resolved active tree.
+  const previewTreeId = searchParams.get('previewTreeId') || null;
+  const queryTrackId = searchParams.get('trackId') || null;
+  const isPreview = Boolean(previewTreeId);
+
+  const { trackId: ctxTrackId, loading: ctxLoading } = useActiveTrack();
+  const trackId = isPreview ? (queryTrackId ?? ctxTrackId) : ctxTrackId;
+  // In preview we already know the track from the URL, so we never wait on the
+  // localStorage-backed active-track context.
+  const trackLoading = isPreview ? false : ctxLoading;
   const [detail, setDetail] = useState<TrackDetail | null>(null);
   const [progress, setProgress] = useState<TrackProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +67,8 @@ export default function TracksPage() {
     setProgress(null);
     try {
       const [t, p] = await Promise.all([
-        fetchTrack(trackId),
-        fetchTrackProgress(trackId).catch(() => null),
+        fetchTrack(trackId, isPreview ? { previewTreeId: previewTreeId! } : undefined),
+        isPreview ? Promise.resolve(null) : fetchTrackProgress(trackId).catch(() => null),
       ]);
       if (generation !== loadGenRef.current) return; // stale, discard
       if (!t) {
@@ -70,7 +81,7 @@ export default function TracksPage() {
       if (generation !== loadGenRef.current) return; // stale, discard
       setError(e instanceof Error ? e.message : 'Failed to load track');
     }
-  }, [trackId]);
+  }, [trackId, isPreview, previewTreeId]);
 
   useEffect(() => {
     void load();
@@ -93,7 +104,13 @@ export default function TracksPage() {
     return <NarrowMain><TreeSkeleton /></NarrowMain>;
   }
 
-  const sections = chunkLessonsIntoSections(detail.title, detail.lessons, progress);
+  const sections = chunkLessonsIntoSections(
+    detail.title,
+    detail.lessons,
+    progress,
+    DEFAULT_SECTION_SIZE,
+    isPreview, // preview: unlock all sections so the whole tree is visible
+  );
   const totalLessons = detail.lessons.length;
   const completedLessons = sections.reduce(
     (acc, s) => acc + s.nodes.filter((n) => n.state === 'completed').length,
@@ -105,6 +122,33 @@ export default function TracksPage() {
 
   return (
     <NarrowMain>
+      {isPreview && (
+        <div
+          className="card"
+          style={{
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            borderColor: 'color-mix(in oklch, var(--iris-400) 40%, transparent)',
+            background: 'color-mix(in oklch, var(--iris-400) 10%, var(--bg-1))',
+          }}
+        >
+          <span style={{ fontSize: 'var(--t-sm)' }}>
+            <strong>Preview</strong> — this is how this skill tree renders for a student.
+            All sections are unlocked and progress is hidden.
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => router.push('/instructor/skill-tree')}
+          >
+            Back to composer
+          </button>
+        </div>
+      )}
       <TreePageHead
         language={detail.language}
         totalLessons={totalLessons}
