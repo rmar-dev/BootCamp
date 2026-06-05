@@ -41,9 +41,9 @@ describe('CodeExercise', () => {
     vi.mocked(useAuth).mockReturnValue({ user: loggedInUser, loading: false, refresh: vi.fn(), logout: vi.fn(), setTotalPoints: mockSetTotalPoints, totalPoints: 0, streak: 0 });
   });
 
-  it('renders Monaco with starterCode', () => {
+  it('renders Monaco with starterCode', async () => {
     render(<CodeExercise exercise={ex} />);
-    expect((screen.getByTestId('monaco') as HTMLTextAreaElement).value).toBe('func greet() -> String {}');
+    expect(((await screen.findByTestId('monaco')) as HTMLTextAreaElement).value).toBe('func greet() -> String {}');
   });
 
   it('has enabled Run and Submit buttons', () => {
@@ -226,9 +226,9 @@ describe('CodeExercise — fix_bug variant', () => {
     });
   });
 
-  it('seeds the editor from `brokenCode` (not `starterCode`)', () => {
+  it('seeds the editor from `brokenCode` (not `starterCode`)', async () => {
     render(<CodeExercise exercise={fixBugEx} />);
-    expect((screen.getByTestId('monaco') as HTMLTextAreaElement).value)
+    expect(((await screen.findByTestId('monaco')) as HTMLTextAreaElement).value)
       .toBe('func add(_ a: Int, _ b: Int) -> Int { return a - b }');
   });
 
@@ -259,6 +259,7 @@ describe('CodeExercise — fix_bug variant', () => {
   it('Reset restores the brokenCode (not the starter)', async () => {
     const user = userEvent.setup();
     render(<CodeExercise exercise={fixBugEx} />);
+    await screen.findByTestId('monaco');
     await user.click(screen.getByRole('button', { name: /^reset$/i }));
     expect((screen.getByTestId('monaco') as HTMLTextAreaElement).value)
       .toBe('func add(_ a: Int, _ b: Int) -> Int { return a - b }');

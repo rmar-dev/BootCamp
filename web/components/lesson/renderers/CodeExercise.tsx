@@ -1,7 +1,23 @@
 'use client';
 import { useState } from 'react';
-import Editor from '@monaco-editor/react';
+import dynamic from 'next/dynamic';
 import { installLanguageServices } from '@/lib/monaco';
+
+// Self-hosted Monaco (see CodeMonacoEditor). Loaded client-only because
+// monaco-editor/esm touches the DOM at import time and must stay out of the
+// server/RSC bundle. This also replaces the default runtime CDN fetch that was
+// breaking autocomplete in production.
+const Editor = dynamic(() => import('./CodeMonacoEditor'), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{ height: '100%', display: 'grid', placeItems: 'center' }}
+      className="muted"
+    >
+      Loading editor…
+    </div>
+  ),
+});
 import type {
   ExerciseDTO,
   CodePayload,
