@@ -18,6 +18,11 @@
   background: rgba(7,9,13,0.6);
   backdrop-filter: blur(10px);
   z-index: 5;
+  /* Instructor/admin nav has ~16 items + user pill — taller than the
+     viewport on short screens. Without this the overflow is clipped and
+     the bottom items (and the user pill) can't be reached. */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 :root[data-theme="light"] .side { background: rgba(255,255,255,0.7); }
 
