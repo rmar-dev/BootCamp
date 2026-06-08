@@ -1,0 +1,9 @@
+[
+  ["open", "http://localhost:3001/login"],
+  ["wait", "--load", "networkidle"],
+  ["find", "label", "Email", "fill", "student@bootcamp.dev"],
+  ["find", "label", "Password", "fill", "wrongpass"],
+  ["find", "role", "button", "click", "--name", "Sign in"],
+  ["wait", "1500"],
+  ["eval", "var t=document.body.innerText; if(location.pathname.startsWith('/login') && /invalid email or password/i.test(t)){'OK error shown'}else{throw new Error('expected inline error + stay on /login; path='+location.pathname)}"]
+]

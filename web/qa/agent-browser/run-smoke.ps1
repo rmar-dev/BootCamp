@@ -9,10 +9,11 @@
     .\run-smoke.ps1 -WebPort 3001 -ApiPort 3002
 
   Notes:
-    - Helper batches whose filename starts with "_" are skipped (they are
-      building blocks, not assertions).
-    - agent-browser reads the batch JSON from stdin (auto-detected). PowerShell
-      5.1 has no "<" input redirection, so the JSON is piped via Get-Content.
+    - Helper batches whose filename starts with "_" are skipped (building
+      blocks, not assertions).
+    - agent-browser reads the batch JSON from stdin. PowerShell 5.1 cannot
+      pipe stdin into the npm .cmd shim reliably (it hangs), so the JSON is
+      fed via cmd.exe input redirection: cmd /c "<shim> batch --bail < file".
     - PASS/FAIL is driven by the exit code of `agent-browser batch --bail`.
 #>
 param(
@@ -25,12 +26,12 @@ $root   = $PSScriptRoot
 $smoke  = Join-Path $root 'smoke'
 $output = Join-Path $root 'output'
 
-# --- locate agent-browser ---
-$ab = 'agent-browser'
-if (-not (Get-Command $ab -ErrorAction SilentlyContinue)) {
-  $cmd = Join-Path $env:APPDATA 'npm\agent-browser.cmd'
-  if (Test-Path $cmd) { $ab = $cmd }
-  else { Write-Error "agent-browser not found on PATH. Install: npm i -g agent-browser; agent-browser install"; exit 2 }
+# --- locate the agent-browser .cmd shim (needed for cmd /c redirection) ---
+$abCmd = Join-Path $env:APPDATA 'npm\agent-browser.cmd'
+if (-not (Test-Path $abCmd)) {
+  $found = Get-Command agent-browser -ErrorAction SilentlyContinue
+  if ($found -and $found.Source -like '*.cmd') { $abCmd = $found.Source }
+  else { Write-Error "agent-browser.cmd not found. Install: npm i -g agent-browser; agent-browser install"; exit 2 }
 }
 
 # --- preconditions: stack must be up ---
@@ -48,11 +49,14 @@ foreach ($f in $files) {
   $name    = $f.BaseName
   $session = "bc-smoke-$name"
   Write-Host "> $name" -ForegroundColor Cyan
-  $json = Get-Content -Raw -LiteralPath $f.FullName
-  $json | & $ab --session $session batch --bail | Out-Host
+  # Feed JSON via cmd.exe stdin redirection (see header note). All agent-browser
+  # calls go through `cmd /c`; calling the .cmd shim via PowerShell's `&` can
+  # hang waiting on an inherited stdin handle.
+  cmd /c "`"$abCmd`" --session $session batch --bail < `"$($f.FullName)`"" | Out-Host
   $code = $LASTEXITCODE
-  & $ab --session $session screenshot (Join-Path $output "$name.png") 2>$null | Out-Null
-  & $ab --session $session close 2>$null | Out-Null
+  $shot = Join-Path $output "$name.png"
+  cmd /c "`"$abCmd`" --session $session screenshot `"$shot`"" 2>$null | Out-Null
+  cmd /c "`"$abCmd`" --session $session close" 2>$null | Out-Null
   $status = if ($code -eq 0) { 'PASS' } else { 'FAIL' }
   $results += [pscustomobject]@{ Flow = $name; Status = $status; Exit = $code }
 }

@@ -1,0 +1,9 @@
+[
+  ["open", "http://localhost:3001/login"],
+  ["wait", "--load", "networkidle"],
+  ["find", "label", "Email", "fill", "student@bootcamp.dev"],
+  ["find", "label", "Password", "fill", "test1234"],
+  ["find", "role", "button", "click", "--name", "Sign in"],
+  ["wait", "2500"],
+  ["eval", "if(!location.pathname.startsWith('/login')){'OK '+location.pathname}else{throw new Error('still on /login after sign in')}"]
+]

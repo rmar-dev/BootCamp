@@ -1,0 +1,5 @@
+[
+  ["open", "http://localhost:3001/dashboard"],
+  ["wait", "1500"],
+  ["eval", "if(location.pathname.startsWith('/login')){'OK redirected to login'}else{throw new Error('unauthenticated /dashboard did not redirect; path='+location.pathname)}"]
+]
