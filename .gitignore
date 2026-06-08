@@ -48,7 +48,9 @@ Thumbs.db
 .cache/
 
 # --- Claude Code personal state (do not check in) ---
-.claude/
+.claude/*
+# ...but DO version in-repo skills (e.g. the qa-flows QA harness skill).
+!.claude/skills/
 
 # --- Preserved nested-repo histories (see initial commit notes) ---
 **/.git.disabled/

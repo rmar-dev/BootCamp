@@ -1,0 +1,8 @@
+[
+  ["open", "http://localhost:3001/login"],
+  ["wait", "--load", "networkidle"],
+  ["find", "label", "Email", "fill", "student@bootcamp.dev"],
+  ["find", "label", "Password", "fill", "test1234"],
+  ["find", "role", "button", "click", "--name", "Sign in"],
+  ["wait", "--fn", "!location.pathname.startsWith('/login')"]
+]

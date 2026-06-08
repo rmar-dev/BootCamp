@@ -1,0 +1,13 @@
+[
+  ["open", "http://localhost:3001/login"],
+  ["wait", "--load", "networkidle"],
+  ["find", "label", "Email", "fill", "student@bootcamp.dev"],
+  ["find", "label", "Password", "fill", "test1234"],
+  ["find", "role", "button", "click", "--name", "Sign in"],
+  ["wait", "2500"],
+  ["find", "role", "button", "click", "--name", "Open settings"],
+  ["wait", "500"],
+  ["find", "role", "button", "click", "--name", "Sign out"],
+  ["wait", "2000"],
+  ["eval", "if(location.pathname.startsWith('/login')){'OK signed out'}else{throw new Error('not back on /login after sign out; path='+location.pathname)}"]
+]
