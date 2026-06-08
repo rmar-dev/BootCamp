@@ -1,4 +1,5 @@
 import { RunnerLanguage } from './types';
+import { stripUnavailableImports } from '../shared/apple-sdk-modules';
 
 const MARKER = '// --- tests below ---';
 
@@ -31,7 +32,12 @@ export function buildHarness(
   testCode: string,
 ): string {
   if (language === 'swift') {
-    return `${SWIFT_WRAPPER_PREFIX}\n\n${studentCode.trimEnd()}\n\n${MARKER}\n\n${testCode.trimEnd()}\n`;
+    // Drop reflexive `import SwiftUI` / `import Combine` etc. — those Apple
+    // frameworks don't exist in the Linux sandbox, and leaving them in aborts
+    // the whole compile before the actual logic can run. Stripping them lets
+    // pure-logic submissions execute so we can grade the code by its output.
+    const { code } = stripUnavailableImports(studentCode);
+    return `${SWIFT_WRAPPER_PREFIX}\n\n${code.trimEnd()}\n\n${MARKER}\n\n${testCode.trimEnd()}\n`;
   }
   return `${studentCode.trimEnd()}\n\n${MARKER}\n\nfun main() {\n${testCode.trimEnd()}\n}\n`;
 }

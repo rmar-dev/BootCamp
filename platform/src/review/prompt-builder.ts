@@ -1,3 +1,5 @@
+import { detectUnavailableModules } from '../shared/apple-sdk-modules';
+
 export type PromptInput = {
   language: string;
   promptMarkdown: string;
@@ -5,6 +7,9 @@ export type PromptInput = {
   passed: boolean;
   stderr?: string;
 };
+
+// Re-exported for callers/tests that reach for it via the prompt builder.
+export { detectUnavailableModules };
 
 export function buildReviewPrompt(input: PromptInput): string {
   const { language, promptMarkdown, code, passed, stderr } = input;
@@ -29,9 +34,23 @@ export function buildReviewPrompt(input: PromptInput): string {
   ];
 
   if (!passed && stderr) {
-    lines.push('');
-    lines.push(`FAILED output (stderr):`);
-    lines.push(stderr);
+    const unavailable = detectUnavailableModules(stderr);
+    if (unavailable.length > 0) {
+      // The submission targets Apple frameworks the Linux grader cannot
+      // provide, so it never compiled and there is no meaningful failure
+      // output. Suppress the module-resolution noise and direct the reviewer
+      // to assess the source statically instead.
+      lines.push('');
+      lines.push(
+        `NOTE: This exercise targets Apple frameworks (${unavailable.join(
+          ', ',
+        )}) that are not available in the grading sandbox, so the code could not be compiled here. This is an environment limitation, NOT a mistake in the submission. Do NOT comment on missing modules, unresolved imports, or module-resolution errors. Review the source above statically for correctness, idiomatic ${language} usage, and best practices.`,
+      );
+    } else {
+      lines.push('');
+      lines.push(`FAILED output (stderr):`);
+      lines.push(stderr);
+    }
   }
 
   lines.push('');

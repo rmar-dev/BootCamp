@@ -28,6 +28,15 @@ describe('buildHarness', () => {
     expect(testIdx).toBeGreaterThan(markerIdx);
   });
 
+  it('Swift: strips a stray Apple-SDK import so pure-logic code still compiles', () => {
+    const withImport = 'import SwiftUI\nimport Combine\nfunc greet() -> String { return "hello" }';
+    const result = buildHarness('swift', withImport, testCode);
+    expect(result).not.toContain('import SwiftUI');
+    expect(result).not.toContain('import Combine');
+    // The actual logic survives so it can run and produce output.
+    expect(result).toContain('func greet() -> String { return "hello" }');
+  });
+
   it('Kotlin: student code appears before fun main()', () => {
     const ktStudentCode = 'fun greet(): String { return "hello" }';
     const ktTestCode = '  check(greet() == "hello")';
