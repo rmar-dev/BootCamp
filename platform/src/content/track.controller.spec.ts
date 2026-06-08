@@ -9,6 +9,7 @@ import { EnsureStudentService } from '../submission/ensure-student';
 import { PrismaService } from '../prisma/prisma.service';
 import { CohortTrackAssignmentRepository } from '../skill-tree/cohort-track-assignment.repository';
 import { StudentTrackAssignmentRepository } from '../skill-tree/student-track-assignment.repository';
+import { SkillTreeService } from '../skill-tree/skill-tree.service';
 
 describe('TrackController — cohortGate filtering', () => {
   let controller: TrackController;
@@ -33,6 +34,8 @@ describe('TrackController — cohortGate filtering', () => {
         PrismaService,
         CohortTrackAssignmentRepository,
         StudentTrackAssignmentRepository,
+        // These cohortGate tests never pass previewTreeId, so a stub is enough.
+        { provide: SkillTreeService, useValue: { getTree: jest.fn() } },
       ],
     }).compile();
     controller = moduleRef.get(TrackController);
