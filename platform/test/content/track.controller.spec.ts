@@ -182,4 +182,68 @@ describe('TrackController (e2e)', () => {
       .get(`/api/tracks/${newId()}`)
       .expect(401);
   });
+
+  it('?previewTreeId renders the tree for an instructor, but is ignored for a student', async () => {
+    // Canonical track sequence is [L1, L2].
+    const trackId = newId();
+    const l1 = newId();
+    const l2 = newId();
+    for (const [id, title, pos] of [
+      [l1, 'L1', 0],
+      [l2, 'L2', 1],
+    ] as const) {
+      await lessonRepo.createDraft({
+        id,
+        trackId,
+        position: pos,
+        title,
+        level: 'beginner',
+        summary: '',
+        blocks: [],
+      });
+      await lessonRepo.publish(id, 1);
+    }
+    await trackRepo.createDraft({
+      id: trackId,
+      title: 'Swift',
+      language: 'swift',
+      kind: 'fundamentals',
+      description: 'd',
+      lessons: [
+        { id: l1, version: 1 },
+        { id: l2, version: 1 },
+      ],
+    });
+    await trackRepo.publish(trackId, 1);
+
+    // An instructor authors a tree whose sequence is just [L2].
+    const instr = await createUserAndLogin(app, prisma, { role: 'instructor' });
+    const treeId = newId();
+    await prisma.skillTree.create({
+      data: {
+        id: treeId,
+        trackId,
+        name: 'Just L2',
+        description: null,
+        authorUserId: instr.userId,
+        visibility: 'private',
+        lessonIds: [l2],
+      },
+    });
+
+    // Instructor preview → the tree's sequence wins.
+    const instrRes = await request(app.getHttpServer())
+      .get(`/api/tracks/${trackId}?mode=preview&previewTreeId=${treeId}`)
+      .set('Cookie', instr.cookie)
+      .expect(200);
+    expect(instrRes.body.lessons.map((l: { id: string }) => l.id)).toEqual([l2]);
+
+    // Student passing the same previewTreeId → ignored, canonical [L1, L2].
+    const stu = await createUserAndLogin(app, prisma, { role: 'student' });
+    const stuRes = await request(app.getHttpServer())
+      .get(`/api/tracks/${trackId}?mode=preview&previewTreeId=${treeId}`)
+      .set('Cookie', stu.cookie)
+      .expect(200);
+    expect(stuRes.body.lessons.map((l: { id: string }) => l.id)).toEqual([l1, l2]);
+  });
 });

@@ -53,6 +53,16 @@ describe('chunkLessonsIntoSections', () => {
     expect(sections[2].locked).toBe(true);
   });
 
+  it('unlockAll=true (preview): no progress but every section unlocked + available', () => {
+    const lessons = Array.from({ length: 18 }, (_, i) => lesson(`L${i + 1}`, i + 1));
+    const sections = chunkLessonsIntoSections('Swift', lessons, null, DEFAULT_SECTION_SIZE, true);
+    expect(sections).toHaveLength(3);
+    expect(sections.every((s) => s.locked === false)).toBe(true);
+    expect(
+      sections.every((s) => s.nodes.every((n) => n.state === 'available')),
+    ).toBe(true);
+  });
+
   it('mid-section progress: 3 complete + 1 in_progress + 2 not_started in section 0', () => {
     const lessons = Array.from({ length: 12 }, (_, i) => lesson(`L${i + 1}`, i + 1));
     const p = progress([

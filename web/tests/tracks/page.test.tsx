@@ -5,8 +5,12 @@ import { useActiveTrack } from '@/lib/track-context';
 import { fetchTrack } from '@/lib/tracks';
 import { fetchTrackProgress } from '@/lib/progress';
 
+const { searchParamsMock } = vi.hoisted(() => ({
+  searchParamsMock: { current: new URLSearchParams() },
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => searchParamsMock.current,
 }));
 
 vi.mock('@/lib/track-context', () => ({
@@ -33,6 +37,7 @@ beforeEach(() => {
   vi.mocked(useActiveTrack).mockReset();
   vi.mocked(fetchTrack).mockReset();
   vi.mocked(fetchTrackProgress).mockReset();
+  searchParamsMock.current = new URLSearchParams();
 });
 
 const swiftTrack = {
@@ -102,5 +107,19 @@ describe('TracksPage', () => {
     await waitFor(() => expect(screen.getByText('Swift Foundations · Part 1')).toBeInTheDocument());
     expect(screen.getByText('Your path forward.')).toBeInTheDocument();
     expect(screen.getByText('0 of 6 lessons')).toBeInTheDocument();
+  });
+
+  it('preview mode (?previewTreeId): shows the preview banner and fetches that tree', async () => {
+    searchParamsMock.current = new URLSearchParams('previewTreeId=tree-1&trackId=swift');
+    // In preview the active-track context is irrelevant; the URL drives it.
+    vi.mocked(useActiveTrack).mockReturnValue({ trackId: null, tracks: [], setTrackId: vi.fn(), loading: false });
+    vi.mocked(fetchTrack).mockResolvedValueOnce(swiftTrack as any);
+    render(<TracksPage />);
+    await waitFor(() =>
+      expect(screen.getByText(/how this skill tree renders for a student/i)).toBeInTheDocument(),
+    );
+    expect(fetchTrack).toHaveBeenCalledWith('swift', { previewTreeId: 'tree-1' });
+    // Progress is never fetched in preview mode.
+    expect(fetchTrackProgress).not.toHaveBeenCalled();
   });
 });

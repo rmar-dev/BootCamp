@@ -9,6 +9,7 @@ import { EnsureStudentService } from '../submission/ensure-student';
 import { PrismaService } from '../prisma/prisma.service';
 import { CohortTrackAssignmentRepository } from '../skill-tree/cohort-track-assignment.repository';
 import { StudentTrackAssignmentRepository } from '../skill-tree/student-track-assignment.repository';
+import { SkillTreeService } from '../skill-tree/skill-tree.service';
 
 describe('TrackController — cohortGate filtering', () => {
   let controller: TrackController;
@@ -33,6 +34,8 @@ describe('TrackController — cohortGate filtering', () => {
         PrismaService,
         CohortTrackAssignmentRepository,
         StudentTrackAssignmentRepository,
+        // These cohortGate tests never pass previewTreeId, so a stub is enough.
+        { provide: SkillTreeService, useValue: { getTree: jest.fn() } },
       ],
     }).compile();
     controller = moduleRef.get(TrackController);
@@ -78,16 +81,16 @@ describe('TrackController — cohortGate filtering', () => {
   });
 
   // authReq carries User.id (JWT sub); the controller resolves it to Student.id.
-  const authReq = { user: { userId } };
+  const authReq = { user: { userId, role: 'student' } };
 
   it('hides twelve_week-gated lessons from four_week cohort students', async () => {
-    const detail = await controller.detail(trackId, undefined, authReq);
+    const detail = await controller.detail(trackId, undefined, undefined, authReq);
     expect(detail.lessons.map((l) => l.id)).toEqual([coreLessonId]);
     expect(detail.lessonCount).toBe(1);
   });
 
   it('shows all lessons when ?mode=preview', async () => {
-    const detail = await controller.detail(trackId, 'preview', authReq);
+    const detail = await controller.detail(trackId, 'preview', undefined, authReq);
     expect(detail.lessons).toHaveLength(2);
   });
 
@@ -96,7 +99,7 @@ describe('TrackController — cohortGate filtering', () => {
       where: { id: cohortId },
       data: { cohortLength: 'twelve_week', exercisesPerLessonTarget: 10 },
     });
-    const detail = await controller.detail(trackId, undefined, authReq);
+    const detail = await controller.detail(trackId, undefined, undefined, authReq);
     expect(detail.lessons).toHaveLength(2);
   });
 });
